@@ -1,0 +1,3031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mindcraft 控制台</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        #agents {
+            background: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #ffffff;
+        }
+        .agent {
+            margin: 10px 0;
+            padding: 10px;
+            background: #363636;
+            border-radius: 4px;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .restart-btn, .start-btn, .stop-btn {
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .restart-btn {
+            background: #4CAF50;
+        }
+        .start-btn {
+            background: #2196F3;
+        }
+        .stop-btn {
+            background: #f44336;
+        }
+        .restart-btn:hover { background: #45a049; }
+        .start-btn:hover { background: #1976D2; }
+        .stop-btn:hover { background: #d32f2f; }
+        .gear-btn {
+            background: #505050;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 6px;
+            cursor: pointer;
+            margin-left: 6px;
+            font-size: 0.9em;
+        }
+        .gear-btn:hover { background: #5a5a5a; }
+        .status-icon {
+            font-size: 12px;
+            margin-right: 8px;
+        }
+        .status-icon.online {
+            color: #4CAF50;
+        }
+        .status-icon.offline {
+            color: #f44336;
+        }
+        #settingsForm {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .setting-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #3a3a3a;
+            padding: 6px 8px;
+            border-radius: 4px;
+            width: 100%;
+            box-sizing: border-box;
+            min-width: 0;
+        }
+        .setting-wrapper label {
+            flex: 0 0 50%;
+            font-size: 0.9em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .setting-wrapper input[type="text"],
+        .setting-wrapper input[type="number"] {
+            flex: 1 1 0;
+            background: #262626;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            border-radius: 4px;
+            padding: 4px 6px;
+            max-width: 100%;
+            min-width: 0;
+        }
+        .setting-wrapper input[type="checkbox"] {
+            transform: scale(1.2);
+        }
+        .model-config-panel {
+            margin: 10px 0 14px;
+            padding: 10px;
+            background: #333333;
+            border-radius: 6px;
+        }
+        .model-config-panel > h3 {
+            margin: 0 0 8px;
+        }
+        .model-config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 10px;
+        }
+        .model-group {
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 10px;
+            min-width: 0;
+        }
+        .model-group legend {
+            padding: 0 6px;
+            color: #ffffff;
+            font-weight: bold;
+        }
+        .model-field {
+            display: grid;
+            grid-template-columns: 90px minmax(0, 1fr);
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .model-field select,
+        .model-field input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #262626;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            border-radius: 4px;
+            padding: 5px 7px;
+        }
+        .model-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 28px;
+        }
+        .model-status {
+            color: #aaaaaa;
+            font-size: 0.85em;
+            overflow-wrap: anywhere;
+        }
+        .model-status.error {
+            color: #ff8a80;
+        }
+        .api-key-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 8px;
+        }
+        .api-key-field {
+            display: grid;
+            grid-template-columns: minmax(125px, 0.7fr) minmax(150px, 1.3fr) auto;
+            gap: 8px;
+            align-items: center;
+            background: #3a3a3a;
+            padding: 7px 8px;
+            border-radius: 4px;
+        }
+        .api-key-field input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #262626;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            border-radius: 4px;
+            padding: 5px 7px;
+        }
+        .api-key-note {
+            color: #aaaaaa;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+        .agent-view-cell {
+            grid-column: 1 / -1;
+            padding: 0;
+        }
+        .agent-view-container {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            margin-top: 6px;
+            overflow: hidden;
+            background: #0e1512;
+            border-radius: 8px;
+        }
+        .agent-viewer {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+        .last-message {
+            font-style: italic;
+            color: #aaa;
+            margin-top: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+        }
+        .start-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .agent-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 8px;
+            width: 100%;
+            align-items: start;
+        }
+        .agent-grid .cell {
+            background: #3a3a3a;
+            padding: 6px 8px;
+            border-radius: 4px;
+        }
+        .agent-grid .cell.title {
+            background: transparent;
+            padding: 0;
+        }
+        .agent-inventory {
+            margin-top: 8px;
+            background: #2f2f2f;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        .agent-inventory h3 { margin: 0 0 6px 0; font-size: 1em; }
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 6px;
+        }
+        .agent-details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 6px;
+            width: 100%;
+        }
+        .controls-row {
+            margin-top: 8px;
+            display: grid;
+            grid-template-columns: auto minmax(100px, 1fr) repeat(5, auto);
+            gap: 8px;
+            align-items: center;
+        }
+        .msg-input {
+            width: calc(100% - 8px);
+            background: #262626;
+            border: 1px solid #555;
+            color: #e0e0e0;
+            border-radius: 4px;
+            padding: 4px 6px;
+        }
+        .neutral-btn {
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 5px;
+            background: #505050;
+        }
+        .neutral-btn:hover { background: #5a5a5a; }
+        .neutral-btn:disabled {
+            background: #383838;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .msg-input:disabled {
+            background: #1a1a1a;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .page-footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #2d2d2d;
+            padding: 16px;
+            display: flex;
+            gap: 12px;
+            justify-content: space-between;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+        }
+        body {
+            padding-bottom: 80px;  /* Make room for footer */
+        }
+        .agent-stats-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin: 6px 0;
+            font-size: 0.9em;
+            color: #cccccc;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .agent-stats-row .stat {
+            background: #3a3a3a;
+            padding: 6px 8px;
+            border-radius: 4px;
+        }
+        .status-badge {
+            font-size: 0.75em;
+            margin-left: 8px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #3a3a3a;
+            color: #cccccc;
+            text-transform: lowercase;
+        }
+        .status-badge.online { color: #4CAF50; }
+        .status-badge.offline { color: #f44336; }
+        .title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .title-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .title-spacer { flex: 1; }
+        /* Modal styles */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: #2d2d2d;
+            border-radius: 8px;
+            width: 80vw;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        .modal-close-btn {
+            background: #f44336;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        .modal-body {
+            flex: 1 1 auto;
+            overflow: auto;
+            padding: 12px 16px;
+        }
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-top: 1px solid #3a3a3a;
+        }
+        .footer-left { color: #cccccc; font-style: italic; }
+    </style>
+    <link rel="stylesheet" href="/console.css">
+</head>
+<body>
+    <div class="title-row">
+        <div class="title-left">
+            <button id="openGlobalSettingsBtn" class="settings-icon-btn" title="打开设置" aria-label="打开设置">⚙</button>
+            <div>
+                <h1 style="margin: 0;">Mindcraft 控制台</h1>
+                <p class="title-subtitle">智能体、模型与 Minecraft 连接的一站式管理中心</p>
+            </div>
+            <span id="msStatus" class="status-badge offline">MindServer 离线</span>
+        </div>
+    </div>
+    <div id="agents"></div>
+
+    <div class="page-footer">
+        <div>
+            <button id="openCreateAgentBtn" class="start-btn">新建智能体</button>
+        </div>
+        <div style="display:flex; gap:12px;">
+            <button class="stop-btn" onclick="disconnectAllAgents()">断开所有智能体</button>
+            <button id="shutdownMindcraftBtn" class="stop-btn" onclick="confirmShutdown()">结束 Mindcraft</button>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="createAgentModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin:0;">创建智能体</h2>
+                <button id="closeCreateAgentBtn" class="modal-close-btn">关闭</button>
+            </div>
+            <div class="modal-body">
+                <div id="createAgentSection">
+                    <section class="profile-editor">
+                        <h3>角色配置</h3>
+                        <div id="andyPresetCard" class="preset-role-card">
+                            <div class="preset-avatar">A</div>
+                            <div class="preset-copy">
+                                <div class="preset-title-row">
+                                    <strong>Andy</strong>
+                                    <span class="preset-badge">官方默认</span>
+                                </div>
+                                <div id="andyPresetDetail" class="field-help">本机 Andy 4.20 · 127.0.0.1:1234</div>
+                            </div>
+                            <button id="useAndyPresetBtn" type="button" class="primary-btn">使用</button>
+                        </div>
+                        <div class="profile-toolbar">
+                            <select id="profileLibrarySelect"><option value="">新建空白角色</option></select>
+                            <button id="loadLibraryProfileBtn" type="button" class="secondary-btn">载入预设</button>
+                            <button id="uploadProfileBtn" type="button" class="secondary-btn">导入 JSON</button>
+                        </div>
+                        <div class="profile-fields">
+                            <div class="profile-field"><label for="createProfileName">智能体名称</label><input id="createProfileName" type="text" placeholder="例如：andy"></div>
+                            <div class="profile-field"><label for="createProfileCooldown">回复冷却（毫秒）</label><input id="createProfileCooldown" type="number" min="0" value="0"></div>
+                            <div class="profile-field"><label for="createProfileMaxTokens">最大输出 Token（可留空）</label><input id="createProfileMaxTokens" type="number" min="1" placeholder="使用模型默认值"></div>
+                            <div class="profile-field"><label for="createProfileSpeakModel">语音模型（可留空）</label><input id="createProfileSpeakModel" type="text" placeholder="openai/tts-1/echo"></div>
+                        </div>
+                        <details class="advanced-editor">
+                            <summary>高级角色配置（提示词、模式、示例、NPC、皮肤等 JSON）</summary>
+                            <textarea id="createProfileAdvanced" spellcheck="false">{}</textarea>
+                        </details>
+                        <div id="profileStatus" class="field-help">可从预设载入、导入 JSON，或直接在这里新建。</div>
+                    </section>
+                    <div id="createModelSelectors"></div>
+                    <div id="createApiKeyFields"></div>
+                    <div id="settingsForm"></div>
+                    <div id="createError" style="color:#f44336;margin-top:10px;"></div>
+                    <input type="file" id="profileFileInput" accept=".json,application/json" style="display:none">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="footer-left" id="footerStatus">填写名称与主模型即可创建；高级项目可以保持默认。</div>
+                <div class="footer-actions">
+                    <button id="saveProfileBtn" class="secondary-btn">保存到角色库</button>
+                    <button id="submitCreateAgentBtn" class="start-btn" disabled>创建智能体</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Settings Modal -->
+    <div id="agentSettingsModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="agentSettingsTitle" style="margin:0;">智能体设置</h2>
+                <button id="closeAgentSettingsBtn" class="modal-close-btn">关闭</button>
+            </div>
+            <div class="modal-body">
+                <div id="agentSettingsSection">
+                    <div id="agentProfileEditor"></div>
+                    <fieldset id="agentBuiltInAndyModel" class="model-group" style="display:none">
+                        <legend>内置 Andy 4.2 模型</legend>
+                        <label for="agentBuiltInAndyChoice">启动时加载</label>
+                        <select id="agentBuiltInAndyChoice" disabled>
+                            <option value="Auto">自动选择</option>
+                            <option value="Micro">Micro Q4</option>
+                            <option value="Air">Air Q4</option>
+                            <option value="Q8">9B Q8</option>
+                        </select>
+                        <button id="saveAgentBuiltInAndyChoice" type="button" class="secondary-btn" disabled>保存模型选择</button>
+                        <div id="agentBuiltInAndyStatus" class="field-help" role="status"></div>
+                    </fieldset>
+                    <div id="agentModelSelectors"></div>
+                    <div id="agentApiKeyFields"></div>
+                    <div id="agentSettingsForm"></div>
+                    <div id="agentSettingsError" style="color:#f44336;margin-top:10px;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="footer-left" id="agentSettingsFooter">修改设置后应用，智能体将自动重启。</div>
+                <div class="footer-actions">
+                    <button id="discardAgentSettingsBtn" class="stop-btn" style="background:#777;">放弃更改</button>
+                    <button id="applyAgentSettingsBtn" class="start-btn" disabled>应用并重启</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Settings Modal -->
+    <div id="globalSettingsModal" class="modal-backdrop">
+        <div class="modal">
+            <div class="modal-header">
+                <div>
+                    <h2 style="margin:0;">设置</h2>
+                    <div class="field-help">模型、API、外观和运行选项都会保存，重启后继续使用。</div>
+                </div>
+                <button id="closeGlobalSettingsBtn" class="modal-close-btn">关闭</button>
+            </div>
+            <div class="modal-body">
+                <section class="settings-section">
+                    <div class="settings-section-heading">
+                        <div>
+                            <h3>大模型提供商</h3>
+                            <div class="field-help">每个提供商分别保存 API 地址、密钥和模型。这里添加的模型会出现在智能体模型下拉框中。</div>
+                        </div>
+                        <input id="providerSearchInput" type="text" placeholder="搜索提供商…">
+                    </div>
+                    <div id="modelProviderList" class="model-provider-list"></div>
+                </section>
+                <section class="settings-section">
+                    <h3>外观</h3>
+                    <div class="appearance-settings-grid">
+                        <div class="profile-field">
+                            <label for="appearanceTheme">主题</label>
+                            <select id="appearanceTheme">
+                                <option value="dark">深色（当前默认）</option>
+                                <option value="light">浅色</option>
+                                <option value="system">跟随系统</option>
+                            </select>
+                        </div>
+                        <div class="profile-field">
+                            <label for="appearanceDensity">界面密度</label>
+                            <select id="appearanceDensity">
+                                <option value="comfortable">舒适</option>
+                                <option value="compact">紧凑</option>
+                            </select>
+                        </div>
+                        <label class="profile-check appearance-motion"><input id="appearanceMotion" type="checkbox" checked> 启用过场动画</label>
+                    </div>
+                </section>
+                <details class="advanced-editor" style="margin-bottom:16px;">
+                    <summary>其他 API 密钥管理</summary>
+                    <div id="globalApiKeyFields" class="api-key-grid" style="padding:12px;"></div>
+                    <div class="api-key-note" style="padding:0 12px 12px;">只填写需要新增或替换的密钥；留空保持不变。密钥会写入本地明文 keys.json，页面不会回显现有值。</div>
+                </details>
+                <details class="advanced-editor" style="margin-bottom:16px;">
+                    <summary>运行、Minecraft 与智能体默认值</summary>
+                    <div id="globalSettingsForm" class="global-grid settings-details-content"></div>
+                </details>
+                <div id="globalSettingsMessage" class="save-message"></div>
+                <div id="globalSettingsError" class="error-message"></div>
+            </div>
+            <div class="modal-footer">
+                <div class="footer-left">模型与 API 设置会成为智能体默认值；标记的运行项需完整重启。</div>
+                <div class="footer-actions">
+                    <button id="saveGlobalSettingsBtn" class="start-btn">保存全部设置</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Model Modal -->
+    <div id="addModelModal" class="modal-backdrop nested-modal-backdrop">
+        <div class="modal confirmation-modal add-model-modal">
+            <div class="modal-header">
+                <div>
+                    <h2 id="addModelModalTitle" style="margin:0;">添加模型</h2>
+                    <div class="field-help">输入服务商控制台或本地服务中实际可用的模型名称。</div>
+                </div>
+                <button id="closeAddModelBtn" class="modal-close-btn">关闭</button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-field">
+                    <label for="newProviderModelName">模型名称</label>
+                    <input id="newProviderModelName" type="text" autocomplete="off" placeholder="例如：gpt-5.4-mini">
+                </div>
+                <div id="addModelError" class="error-message"></div>
+            </div>
+            <div class="modal-footer">
+                <div class="footer-left">添加后仍需点击设置页底部的“保存全部设置”。</div>
+                <div class="footer-actions">
+                    <button id="cancelAddModelBtn" class="secondary-btn">取消</button>
+                    <button id="confirmAddModelBtn" class="start-btn">添加模型</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shutdown Confirmation Modal -->
+    <div id="shutdownConfirmModal" class="modal-backdrop">
+        <div class="modal confirmation-modal">
+            <div class="modal-header">
+                <div>
+                    <h2 style="margin:0;">结束 Mindcraft</h2>
+                    <div class="field-help">这会停止全部智能体、关闭 MindServer，并结束后台 Node.js 进程。</div>
+                </div>
+            </div>
+            <div class="modal-body shutdown-body">
+                <div class="shutdown-icon">⏻</div>
+                <div>
+                    <strong>确定结束本次运行吗？</strong>
+                    <p class="field-help">尚未写入磁盘的对话状态可能丢失。角色卡、全局设置和 API 密钥不会被删除。</p>
+                    <div id="shutdownStatus" class="save-message"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="footer-left">结束后可以关闭本页面，或重新运行 start_mindcraft.exe。</div>
+                <div class="footer-actions">
+                    <button id="cancelShutdownBtn" class="secondary-btn">取消</button>
+                    <button id="confirmShutdownBtn" class="stop-btn">确认结束</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io({ path: window.location.pathname + 'socket.io' })
+        const agentsDiv = document.getElementById('agents');
+        let settingsSpec = {};
+        let profileData = null;
+        let consoleSettings = {};
+        let consolePreferences = {
+            appearance: { theme: 'dark', motion: true, density: 'comfortable' },
+            model_catalog: {}
+        };
+        let profileLibrary = [];
+        const agentSettings = {};
+        const agentLastMessage = {};
+        const agentTraces = {};
+        function setChineseOutput(name, checkbox) {
+            const enabled = checkbox.checked;
+            const status = document.getElementById(`chineseOutputStatus-${name}`);
+            checkbox.disabled = true;
+            if (status) status.textContent = '';
+            emitConsole('set-chinese-output', name, enabled, result => {
+                checkbox.disabled = false;
+                if (!result.success) {
+                    checkbox.checked = !enabled;
+                    if (status) status.textContent = result.error;
+                }
+            });
+        }
+        const inventoryOpen = {};
+        let currentAgents = [];
+        let shutdownRequested = false;
+
+        function emitConsole(event, ...args) {
+            const callback = args.pop();
+            socket.timeout(8000).emit(event, ...args, (error, result) => {
+                callback(error
+                    ? { success: false, error: '控制台请求超时，请检查连接；更新代码后请重启 Mindcraft 并刷新页面。' }
+                    : result || { success: false, error: '服务端没有返回结果。' });
+            });
+        }
+
+        const settingLabels = {
+            minecraft_version: 'Minecraft 版本',
+            host: '服务器地址',
+            port: '服务器端口',
+            auth: '身份验证方式',
+            mindserver_port: '控制台端口（重启生效）',
+            auto_open_ui: '启动后自动打开控制台（重启生效）',
+            profiles: '启动时自动创建的角色（重启生效）',
+            base_profile: '基础行为配置',
+            load_memory: '加载历史记忆',
+            init_message: '初始消息',
+            only_chat_with: '仅与指定玩家聊天',
+            speak: '启用语音朗读',
+            language: '自动翻译语言',
+            allow_vision: '启用视觉能力',
+            blocked_actions: '禁用的动作',
+            relevant_docs_count: '相关技能文档数量',
+            max_messages: '上下文消息上限',
+            num_examples: '提示示例数量',
+            max_commands: '连续命令上限',
+            narrate_behavior: '播报自动行为',
+            log_all_prompts: '记录全部提示词',
+            show_command_syntax: '显示命令语法',
+            chat_ingame: '在游戏中显示聊天',
+            chat_bot_messages: '公开智能体间消息',
+            render_bot_view: '显示智能体视角',
+            allow_insecure_coding: '允许模型编写并执行代码',
+            code_timeout_mins: '代码执行超时（分钟）',
+            task: '启动任务',
+            spawn_timeout: '生成超时（秒）',
+            block_place_delay: '方块放置间隔（毫秒）'
+        };
+
+        const modelRoles = [
+            ['main', '主模型', 'model', false],
+            ['vision', '视觉专用模型', 'vision_model', true],
+            ['code', '代码专用模型', 'code_model', true],
+            ['embedding', '嵌入模型', 'embedding', true]
+        ];
+        const managedProfileKeys = new Set(['name', 'model', 'vision_model', 'code_model', 'embedding', 'cooldown', 'max_tokens', 'speak_model']);
+        let builtInAndyProfile = null;
+        const andyModelLabels = {
+            'andy-4.2-micro-q4': 'Andy 4.2 Micro Q4',
+            'andy-4.2-air-q4': 'Andy 4.2 Air Q4',
+            'andy-4.2-q8-reference': 'Andy 4.2 9B Q8'
+        };
+        const andyPresetLabel = () => andyModelLabels[builtInAndyProfile?.model?.model] || 'Andy 4.20';
+        const andyPresetStatus = () => `正在使用 ${andyPresetLabel()}；仍可继续修改名称、模型和服务商。`;
+        function andyPreset() {
+            if (builtInAndyProfile) return structuredClone(builtInAndyProfile);
+            return {
+                name: 'andy',
+                model: {
+                    api: 'lmstudio',
+                    model: 'andy-4.20',
+                    url: 'http://127.0.0.1:1234/v1',
+                    params: { temperature: 0.6, top_p: 0.95 }
+                },
+                embedding: {
+                    api: 'lmstudio',
+                    model: 'text-embedding-nomic-embed-text-v1.5',
+                    url: 'http://127.0.0.1:1235/v1'
+                }
+            };
+        }
+
+        function isAndyPreset(profile) {
+            const model = typeof profile?.model === 'string' ? profile.model : profile?.model?.model;
+            return profile?.name === 'andy' && model === (builtInAndyProfile?.model?.model || 'andy-4.20');
+        }
+
+        function orderModelOptions(models, currentModel='', includeAndy=false) {
+            const source = [...models];
+            if (includeAndy && !source.some(model => String(model).toLowerCase() === 'andy-4.20')) {
+                source.unshift('andy-4.20');
+            }
+            const andy = [];
+            const rest = [];
+            for (const model of source) {
+                if (/^andy/i.test(String(model))) andy.push(model);
+                else rest.push(model);
+            }
+            andy.sort((a, b) => {
+                if (String(a).toLowerCase() === 'andy-4.20') return -1;
+                if (String(b).toLowerCase() === 'andy-4.20') return 1;
+                return String(a).localeCompare(String(b));
+            });
+            const ordered = [...andy, ...rest];
+            if (currentModel && !ordered.includes(currentModel)) {
+                const andyIndex = ordered.findIndex(model => /^andy/i.test(String(model)));
+                ordered.splice(andyIndex === -1 ? 0 : andyIndex + 1, 0, currentModel);
+            }
+            return ordered;
+        }
+
+        const modelProviders = [
+            ['auto', '自动识别'],
+            ['ollama', 'Ollama（本机）'],
+            ['openai', 'OpenAI'],
+            ['anthropic', 'Anthropic'],
+            ['google', 'Google Gemini'],
+            ['deepseek', 'DeepSeek'],
+            ['qwen', '通义千问'],
+            ['xai', 'xAI'],
+            ['mistral', 'Mistral'],
+            ['openrouter', 'OpenRouter'],
+            ['groq', 'Groq'],
+            ['lmstudio', 'LM Studio'],
+            ['vllm', 'vLLM'],
+            ['azure', 'Azure OpenAI'],
+            ['cerebras', 'Cerebras'],
+            ['replicate', 'Replicate'],
+            ['huggingface', 'Hugging Face'],
+            ['novita', 'Novita'],
+            ['hyperbolic', 'Hyperbolic'],
+            ['glhf', 'GLHF'],
+            ['mercury', 'Mercury']
+        ];
+        const knownProviders = new Set(modelProviders.map(([value]) => value).filter(value => value !== 'auto'));
+        const ollamaModelCache = { models: null, request: null };
+        const apiKeyByProvider = {
+            openai: 'OPENAI_API_KEY',
+            anthropic: 'ANTHROPIC_API_KEY',
+            google: 'GEMINI_API_KEY',
+            deepseek: 'DEEPSEEK_API_KEY',
+            qwen: 'QWEN_API_KEY',
+            xai: 'XAI_API_KEY',
+            mistral: 'MISTRAL_API_KEY',
+            openrouter: 'OPENROUTER_API_KEY',
+            groq: 'GROQCLOUD_API_KEY',
+            azure: 'AZURE_OPENAI_API_KEY',
+            cerebras: 'CEREBRAS_API_KEY',
+            replicate: 'REPLICATE_API_KEY',
+            huggingface: 'HUGGINGFACE_API_KEY',
+            novita: 'NOVITA_API_KEY',
+            hyperbolic: 'HYPERBOLIC_API_KEY',
+            glhf: 'GHLF_API_KEY',
+            mercury: 'MERCURY_API_KEY'
+        };
+        const apiKeyUiState = {
+            create: { configured: new Set(), drafts: {} },
+            agent: { configured: new Set(), drafts: {} },
+            global: { configured: new Set(), drafts: {} }
+        };
+        const additionalApiKeys = ['OPENAI_ORG_ID'];
+        const systemThemeQuery = window.matchMedia('(prefers-color-scheme: light)');
+        let pendingModelProvider = null;
+
+        function applyAppearance(appearance={}) {
+            const theme = ['dark', 'light', 'system'].includes(appearance.theme) ? appearance.theme : 'dark';
+            const effectiveTheme = theme === 'system' ? (systemThemeQuery.matches ? 'light' : 'dark') : theme;
+            document.documentElement.dataset.theme = effectiveTheme;
+            document.documentElement.dataset.motion = appearance.motion === false ? 'off' : 'on';
+            document.documentElement.dataset.density = appearance.density === 'compact' ? 'compact' : 'comfortable';
+        }
+
+        systemThemeQuery.addEventListener?.('change', () => {
+            if (consolePreferences.appearance?.theme === 'system') applyAppearance(consolePreferences.appearance);
+        });
+
+        function readAppearanceSettings() {
+            return {
+                theme: document.getElementById('appearanceTheme').value,
+                density: document.getElementById('appearanceDensity').value,
+                motion: document.getElementById('appearanceMotion').checked,
+            };
+        }
+
+        function ensureProviderCatalog(provider) {
+            consolePreferences.model_catalog ||= {};
+            const current = getProviderCatalog(provider);
+            consolePreferences.model_catalog[provider] = current;
+            return consolePreferences.model_catalog[provider];
+        }
+
+        function openAddModelModal(provider) {
+            pendingModelProvider = provider;
+            const label = modelProviders.find(([value]) => value === provider)?.[1] || provider;
+            document.getElementById('addModelModalTitle').textContent = `为 ${label} 添加模型`;
+            document.getElementById('newProviderModelName').value = '';
+            document.getElementById('addModelError').textContent = '';
+            document.getElementById('addModelModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('newProviderModelName').focus(), 30);
+        }
+
+        function closeAddModelModal() {
+            pendingModelProvider = null;
+            document.getElementById('addModelModal').style.display = 'none';
+        }
+
+        function confirmAddModel() {
+            const model = document.getElementById('newProviderModelName').value.trim();
+            if (!pendingModelProvider || !model) {
+                document.getElementById('addModelError').textContent = '请填写模型名称。';
+                return;
+            }
+            const provider = pendingModelProvider;
+            const catalog = ensureProviderCatalog(provider);
+            if (catalog.models.includes(model)) {
+                document.getElementById('addModelError').textContent = '这个模型已经在列表中。';
+                return;
+            }
+            catalog.models.push(model);
+            closeAddModelModal();
+            renderModelProviderList(document.getElementById('providerSearchInput').value);
+            document.getElementById(`provider-card-${provider}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('globalSettingsMessage').textContent = `已添加模型 ${model}；点击“保存全部设置”后永久生效。`;
+        }
+
+        async function detectOllamaModelsForProvider(button) {
+            button.disabled = true;
+            button.textContent = '正在检测…';
+            const result = await requestOllamaModels(true);
+            button.disabled = false;
+            button.textContent = '检测本机模型';
+            if (!result?.success) {
+                document.getElementById('globalSettingsError').textContent = result?.error || 'Ollama 模型检测失败。';
+                return;
+            }
+            const catalog = ensureProviderCatalog('ollama');
+            catalog.models = [...new Set([...catalog.models, ...(result.models || [])])];
+            renderModelProviderList(document.getElementById('providerSearchInput').value);
+            document.getElementById('globalSettingsError').textContent = '';
+            document.getElementById('globalSettingsMessage').textContent = `检测到 ${result.models?.length || 0} 个 Ollama 模型；点击“保存全部设置”后永久生效。`;
+        }
+
+        function renderModelProviderList(filter='') {
+            const list = document.getElementById('modelProviderList');
+            if (!list) return;
+            const keyword = filter.trim().toLowerCase();
+            list.innerHTML = '';
+            for (const [provider, label] of modelProviders.filter(([value]) => value !== 'auto')) {
+                if (keyword && !`${provider} ${label}`.toLowerCase().includes(keyword)) continue;
+                const catalog = ensureProviderCatalog(provider);
+                const keyName = apiKeyByProvider[provider];
+                const card = document.createElement('article');
+                card.className = 'model-provider-card';
+                card.id = `provider-card-${provider}`;
+
+                const header = document.createElement('div');
+                header.className = 'provider-card-header';
+                const identity = document.createElement('div');
+                identity.className = 'provider-identity';
+                const avatar = document.createElement('span');
+                avatar.className = 'provider-avatar';
+                avatar.textContent = label.slice(0, 1).toUpperCase();
+                const heading = document.createElement('div');
+                const title = document.createElement('strong');
+                title.textContent = label;
+                const code = document.createElement('span');
+                code.className = 'provider-code';
+                code.textContent = provider;
+                heading.append(title, code);
+                identity.append(avatar, heading);
+                const count = document.createElement('span');
+                count.className = 'provider-model-count';
+                count.textContent = `${catalog.models.length} 个模型`;
+                header.append(identity, count);
+
+                const fields = document.createElement('div');
+                fields.className = 'provider-card-fields';
+                const urlField = document.createElement('label');
+                urlField.className = 'provider-card-field';
+                urlField.append(document.createTextNode('API 地址'));
+                const urlInput = document.createElement('input');
+                urlInput.type = 'text';
+                urlInput.value = catalog.base_url;
+                urlInput.placeholder = '留空使用服务商默认地址';
+                urlInput.addEventListener('input', () => { ensureProviderCatalog(provider).base_url = urlInput.value.trim(); });
+                urlField.appendChild(urlInput);
+
+                const keyField = document.createElement('label');
+                keyField.className = 'provider-card-field';
+                keyField.append(document.createTextNode(keyName ? `API Key · ${keyName}` : 'API Key'));
+                const keyRow = document.createElement('div');
+                keyRow.className = 'provider-key-input-row';
+                const keyInput = document.createElement('input');
+                keyInput.type = 'password';
+                keyInput.autocomplete = 'new-password';
+                keyInput.disabled = !keyName;
+                keyInput.value = keyName ? (apiKeyUiState.global.drafts[keyName] || '') : '';
+                keyInput.placeholder = !keyName
+                    ? '本地服务通常不需要密钥'
+                    : (apiKeyUiState.global.configured.has(keyName) ? '已配置；留空保持不变' : `输入 ${keyName}`);
+                keyInput.addEventListener('input', () => { if (keyName) apiKeyUiState.global.drafts[keyName] = keyInput.value; });
+                const toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.className = 'neutral-btn provider-key-toggle';
+                toggle.textContent = '显示';
+                toggle.disabled = !keyName;
+                toggle.addEventListener('click', () => {
+                    const show = keyInput.type === 'password';
+                    keyInput.type = show ? 'text' : 'password';
+                    toggle.textContent = show ? '隐藏' : '显示';
+                });
+                keyRow.append(keyInput, toggle);
+                const keyStatus = document.createElement('span');
+                keyStatus.className = `provider-key-status ${keyName && apiKeyUiState.global.configured.has(keyName) ? 'configured' : ''}`;
+                keyStatus.textContent = !keyName
+                    ? '无需密钥'
+                    : (apiKeyUiState.global.configured.has(keyName) ? '已保存密钥' : '尚未配置');
+                keyField.append(keyRow, keyStatus);
+                fields.append(urlField, keyField);
+
+                const modelSection = document.createElement('div');
+                modelSection.className = 'provider-model-section';
+                const modelHeader = document.createElement('div');
+                modelHeader.className = 'provider-model-header';
+                const modelTitle = document.createElement('strong');
+                modelTitle.textContent = '可选模型';
+                const actions = document.createElement('div');
+                actions.className = 'provider-model-actions';
+                if (provider === 'ollama') {
+                    const detect = document.createElement('button');
+                    detect.type = 'button';
+                    detect.className = 'secondary-btn';
+                    detect.textContent = '检测本机模型';
+                    detect.addEventListener('click', () => detectOllamaModelsForProvider(detect));
+                    actions.appendChild(detect);
+                }
+                const add = document.createElement('button');
+                add.type = 'button';
+                add.className = 'primary-btn';
+                add.textContent = '＋ 添加模型';
+                add.addEventListener('click', () => openAddModelModal(provider));
+                actions.appendChild(add);
+                modelHeader.append(modelTitle, actions);
+
+                const models = document.createElement('div');
+                models.className = 'provider-model-items';
+                if (catalog.models.length === 0) {
+                    const empty = document.createElement('span');
+                    empty.className = 'provider-model-empty';
+                    empty.textContent = '尚未添加模型';
+                    models.appendChild(empty);
+                }
+                catalog.models.forEach(model => {
+                    const item = document.createElement('span');
+                    item.className = 'provider-model-item';
+                    const name = document.createElement('span');
+                    name.textContent = model;
+                    const remove = document.createElement('button');
+                    remove.type = 'button';
+                    remove.title = `删除 ${model}`;
+                    remove.textContent = '×';
+                    remove.addEventListener('click', () => {
+                        const mutable = ensureProviderCatalog(provider);
+                        mutable.models = mutable.models.filter(value => value !== model);
+                        renderModelProviderList(document.getElementById('providerSearchInput').value);
+                    });
+                    item.append(name, remove);
+                    models.appendChild(item);
+                });
+                modelSection.append(modelHeader, models);
+                card.append(header, fields, modelSection);
+                list.appendChild(card);
+            }
+        }
+
+        function inferModelProvider(config) {
+            if (config && typeof config === 'object' && config.api) return config.api;
+            const model = typeof config === 'string' ? config : config?.model;
+            if (!model) return 'auto';
+            const prefix = model.split('/')[0];
+            if (knownProviders.has(prefix)) return prefix;
+            if (/^(gpt-|o1|o3)/i.test(model)) return 'openai';
+            if (/^claude/i.test(model)) return 'anthropic';
+            if (/^gemini/i.test(model)) return 'google';
+            if (/^deepseek/i.test(model)) return 'deepseek';
+            if (/^qwen/i.test(model)) return 'qwen';
+            if (/^grok/i.test(model)) return 'xai';
+            if (/^mistral/i.test(model)) return 'mistral';
+            return 'auto';
+        }
+
+        function unpackModelConfig(config, allowUnset=false) {
+            if (allowUnset && !config) return { provider: '', model: '' };
+            const provider = inferModelProvider(config);
+            let model = typeof config === 'string' ? config : (config?.model || '');
+            if (provider !== 'auto' && model.startsWith(provider + '/')) {
+                model = model.substring(provider.length + 1);
+            }
+            return { provider, model };
+        }
+
+        function requestOllamaModels(force=false) {
+            if (ollamaModelCache.models && !force) {
+                return Promise.resolve({ success: true, models: ollamaModelCache.models, error: null });
+            }
+            if (ollamaModelCache.request && !force) return ollamaModelCache.request;
+
+            ollamaModelCache.request = new Promise(resolve => {
+                let finished = false;
+                const timeout = setTimeout(() => {
+                    if (finished) return;
+                    finished = true;
+                    ollamaModelCache.request = null;
+                    resolve({ success: false, models: [], error: '检测 Ollama 模型超时。' });
+                }, 12000);
+
+                socket.emit('get-ollama-models', result => {
+                    if (finished) return;
+                    finished = true;
+                    clearTimeout(timeout);
+                    ollamaModelCache.request = null;
+                    if (result?.success) {
+                        ollamaModelCache.models = result.models || [];
+                    }
+                    resolve(result || { success: false, models: [], error: 'Ollama 检测没有返回结果。' });
+                });
+            });
+            return ollamaModelCache.request;
+        }
+
+        function appendOption(select, value, label, selected=false) {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            option.selected = selected;
+            select.appendChild(option);
+        }
+
+        function getProviderCatalog(provider) {
+            const entry = consolePreferences.model_catalog?.[provider];
+            return entry && typeof entry === 'object'
+                ? { base_url: entry.base_url || '', models: Array.isArray(entry.models) ? entry.models : [] }
+                : { base_url: '', models: [] };
+        }
+
+        function populateConfiguredModelOptions(groupId, provider, currentModel='') {
+            const select = document.getElementById(`${groupId}-model`);
+            const status = document.getElementById(`${groupId}-status`);
+            if (!select || !status) return;
+            const catalog = getProviderCatalog(provider);
+            const listed = provider === 'auto'
+                ? [...new Set(Object.values(consolePreferences.model_catalog || {}).flatMap(entry => entry?.models || []))]
+                : catalog.models;
+            const includeAndy = groupId.endsWith('-main') && (provider === 'lmstudio' || provider === 'auto');
+            const models = orderModelOptions(listed, currentModel, includeAndy);
+            select.innerHTML = '';
+            models.forEach((model, index) => appendOption(
+                select,
+                model,
+                model === currentModel && !listed.includes(model) && !(includeAndy && model === 'andy-4.20') ? `${model}（当前配置）` : model,
+                model === currentModel || (!currentModel && index === 0)
+            ));
+            appendOption(select, '__settings__', '前往设置配置模型…', models.length === 0 && !currentModel);
+            select.dataset.currentModel = currentModel || (models[0] || '');
+            status.classList.toggle('error', models.length === 0 && !currentModel);
+            status.textContent = models.length > 0
+                ? `可从设置中预先配置的 ${models.length} 个模型中选择。`
+                : '尚未配置模型列表，请前往设置添加。';
+        }
+
+        async function populateOllamaModelOptions(groupId, currentModel='', force=false, onChange=()=>{}) {
+            const select = document.getElementById(`${groupId}-model`);
+            const status = document.getElementById(`${groupId}-status`);
+            if (!select || !status) return;
+
+            select.disabled = true;
+            select.innerHTML = '';
+            appendOption(select, '', '正在检测…', true);
+            status.classList.remove('error');
+            status.textContent = '正在执行 ollama list 检测本机模型…';
+            const result = await requestOllamaModels(force);
+
+            select.innerHTML = '';
+            const detectedModels = result?.models || [];
+            const listed = [...new Set([...detectedModels, ...getProviderCatalog('ollama').models])];
+            const models = orderModelOptions(listed, currentModel, false);
+            models.forEach((model, index) => {
+                appendOption(
+                    select,
+                    model,
+                    model === currentModel && !listed.includes(model) ? `${model}（当前配置）` : model,
+                    model === currentModel || (!currentModel && index === 0)
+                );
+            });
+            appendOption(select, '__settings__', '前往设置配置模型…', models.length === 0 && !currentModel);
+            select.disabled = false;
+            select.dataset.currentModel = currentModel || (models[0] || '');
+
+            if (result?.success && models.length > 0) {
+                status.textContent = `可用 ${models.length} 个 Ollama 模型（自动检测与设置列表）。`;
+            }
+            else if (result?.success) {
+                status.textContent = 'Ollama 当前没有已安装的模型，可前往设置维护模型列表。';
+            }
+            else if (models.length > 0) {
+                status.textContent = `自动检测失败，正在使用设置中保存的 ${models.length} 个模型。`;
+            }
+            else {
+                status.classList.add('error');
+                status.textContent = result?.error || '无法检测 Ollama 模型。';
+            }
+
+            onChange();
+        }
+
+        function createModelGroupMarkup(groupId, title, allowUnset=false) {
+            const providerOptions = [
+                ...(allowUnset ? [['', '未单独配置（使用主模型）']] : []),
+                ...modelProviders
+            ].map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
+
+            return `<fieldset class="model-group">
+                <legend>${title}</legend>
+                <div class="model-field">
+                    <label for="${groupId}-provider">服务商</label>
+                    <select id="${groupId}-provider">${providerOptions}</select>
+                </div>
+                <div class="model-field">
+                    <label for="${groupId}-model">模型</label>
+                    <select id="${groupId}-model"></select>
+                </div>
+                <div class="model-actions">
+                    <button id="${groupId}-refresh" type="button" class="neutral-btn" style="display:none;">重新检测 Ollama</button>
+                    <span id="${groupId}-status" class="model-status"></span>
+                </div>
+                <details class="advanced-editor">
+                    <summary>连接地址与模型参数</summary>
+                    <div class="model-field"><label for="${groupId}-url">API 地址</label><input id="${groupId}-url" type="text" placeholder="留空使用服务商默认地址"></div>
+                    <div class="model-field"><label for="${groupId}-params">参数 JSON</label><textarea id="${groupId}-params" rows="3" spellcheck="false">{}</textarea></div>
+                </details>
+            </fieldset>`;
+        }
+
+        function setupModelGroup(groupId, config, allowUnset, onChange) {
+            const providerSelect = document.getElementById(`${groupId}-provider`);
+            const modelSelect = document.getElementById(`${groupId}-model`);
+            const refreshButton = document.getElementById(`${groupId}-refresh`);
+            const status = document.getElementById(`${groupId}-status`);
+            const urlInput = document.getElementById(`${groupId}-url`);
+            const paramsInput = document.getElementById(`${groupId}-params`);
+            const unpacked = unpackModelConfig(config, allowUnset);
+            providerSelect.value = unpacked.provider;
+            const hasExplicitUrl = !!(config && typeof config === 'object' && config.url);
+            urlInput.value = hasExplicitUrl ? config.url : getProviderCatalog(unpacked.provider).base_url;
+            urlInput.dataset.inherited = hasExplicitUrl ? 'false' : 'true';
+            paramsInput.value = JSON.stringify(config && typeof config === 'object' ? (config.params || {}) : {}, null, 2);
+
+            const refreshForProvider = (currentModel='', force=false) => {
+                const provider = providerSelect.value;
+                const disabled = allowUnset && provider === '';
+                modelSelect.disabled = disabled;
+                urlInput.disabled = disabled;
+                paramsInput.disabled = disabled;
+                refreshButton.style.display = provider === 'ollama' ? '' : 'none';
+                status.classList.remove('error');
+
+                if (disabled) {
+                    modelSelect.innerHTML = '';
+                    appendOption(modelSelect, '', '使用主模型', true);
+                    status.textContent = '未单独配置，将使用主模型。';
+                }
+                else if (provider === 'ollama') {
+                    populateOllamaModelOptions(groupId, currentModel, force, onChange);
+                }
+                else {
+                    populateConfiguredModelOptions(groupId, provider, currentModel);
+                }
+            };
+
+            providerSelect.addEventListener('change', () => {
+                urlInput.value = getProviderCatalog(providerSelect.value).base_url;
+                urlInput.dataset.inherited = 'true';
+                refreshForProvider('', false);
+                onChange();
+            });
+            modelSelect.addEventListener('change', () => {
+                if (modelSelect.value === '__settings__') {
+                    const previousModel = modelSelect.dataset.currentModel || '';
+                    openGlobalSettings(providerSelect.value);
+                    refreshForProvider(previousModel, false);
+                    return;
+                }
+                modelSelect.dataset.currentModel = modelSelect.value;
+                onChange();
+            });
+            urlInput.addEventListener('input', () => {
+                urlInput.dataset.inherited = 'false';
+                onChange();
+            });
+            paramsInput.addEventListener('input', onChange);
+            refreshButton.addEventListener('click', () => {
+                const current = modelSelect.value === '__settings__' ? (modelSelect.dataset.currentModel || '') : modelSelect.value;
+                populateOllamaModelOptions(groupId, current, true, onChange);
+            });
+
+            refreshForProvider(unpacked.model, false);
+        }
+
+        function captureApiKeyDrafts(scope) {
+            const state = apiKeyUiState[scope];
+            document.querySelectorAll(`#${scope}ApiKeyFields input[data-api-key-name]`).forEach(input => {
+                if (input.value) state.drafts[input.dataset.apiKeyName] = input.value;
+            });
+        }
+
+        function setConfiguredApiKeys(scope, names=[]) {
+            apiKeyUiState[scope].configured = new Set(names || []);
+        }
+
+        function getSelectedProvider(scope, role) {
+            const groupId = `${scope}-${role}`;
+            let provider = document.getElementById(`${groupId}-provider`)?.value || '';
+            if (provider !== 'auto') return provider;
+            const modelSelect = document.getElementById(`${groupId}-model`);
+            const model = modelSelect?.value === '__settings__' ? modelSelect.dataset.currentModel : modelSelect?.value;
+            return inferModelProvider(model || '');
+        }
+
+        function buildApiKeyFields(scope, onChange=()=>{}) {
+            const container = document.getElementById(`${scope}ApiKeyFields`);
+            if (!container) return;
+            captureApiKeyDrafts(scope);
+
+            const requiredKeys = new Map();
+            for (const [role, roleLabel] of modelRoles.map(([role, label]) => [role, label])) {
+                const provider = getSelectedProvider(scope, role);
+                const keyName = apiKeyByProvider[provider];
+                if (!keyName) continue;
+                if (!requiredKeys.has(keyName)) requiredKeys.set(keyName, { provider, roles: [] });
+                requiredKeys.get(keyName).roles.push(roleLabel);
+            }
+
+            container.className = 'model-config-panel';
+            if (requiredKeys.size === 0) {
+                container.innerHTML = `<h3>API 密钥</h3>
+                    <div class="api-key-note">当前选择的模型不需要 API 密钥，或服务商尚未确定。Ollama、LM Studio 和 vLLM 通常可直接使用本地服务。</div>`;
+                return;
+            }
+
+            if (scope !== 'global') {
+                const statuses = [...requiredKeys].map(([keyName, info]) => {
+                    const providerLabel = modelProviders.find(([value]) => value === info.provider)?.[1] || info.provider;
+                    const configured = apiKeyUiState[scope].configured.has(keyName);
+                    return `<div class="api-key-status-row ${configured ? 'configured' : 'missing'}">
+                        <span>${providerLabel}（${info.roles.join('、')}）</span>
+                        <strong>${configured ? '已在设置中配置' : '尚未配置'}</strong>
+                    </div>`;
+                }).join('');
+                container.innerHTML = `<h3>API 密钥</h3><div class="api-key-status-list">${statuses}</div>
+                    <div class="api-key-note">API Key 统一在左上角“设置”中管理，新建与已有智能体会默认使用已保存的密钥。</div>
+                    <button type="button" class="secondary-btn open-model-settings-btn">前往设置</button>`;
+                container.querySelector('.open-model-settings-btn').addEventListener('click', () => openGlobalSettings());
+                return;
+            }
+
+            container.innerHTML = '<h3>API 密钥</h3><div class="api-key-grid"></div><div class="api-key-note">保存后会合并写入本地 keys.json，下次启动仍可使用；不会写入 profile，也不会在页面中回显。留空表示保持现有密钥不变。keys.json 是明文文件，请勿将其分享或提交到版本库。</div>';
+            const grid = container.querySelector('.api-key-grid');
+            for (const [keyName, info] of requiredKeys) {
+                const providerLabel = modelProviders.find(([value]) => value === info.provider)?.[1] || info.provider;
+                const wrapper = document.createElement('div');
+                wrapper.className = 'api-key-field';
+
+                const label = document.createElement('label');
+                label.htmlFor = `${scope}-api-key-${keyName}`;
+                label.textContent = `${providerLabel}（${info.roles.join('、')}）`;
+                label.title = keyName;
+
+                const input = document.createElement('input');
+                input.id = `${scope}-api-key-${keyName}`;
+                input.type = 'password';
+                input.autocomplete = 'new-password';
+                input.dataset.apiKeyName = keyName;
+                input.value = apiKeyUiState[scope].drafts[keyName] || '';
+                input.placeholder = apiKeyUiState[scope].configured.has(keyName)
+                    ? '已配置；留空保持不变'
+                    : `输入 ${keyName}`;
+                input.addEventListener('input', () => {
+                    apiKeyUiState[scope].drafts[keyName] = input.value;
+                    onChange();
+                });
+
+                const toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.className = 'neutral-btn';
+                toggle.textContent = '显示';
+                toggle.addEventListener('click', () => {
+                    const show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    toggle.textContent = show ? '隐藏' : '显示';
+                });
+
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+                wrapper.appendChild(toggle);
+                grid.appendChild(wrapper);
+            }
+        }
+
+        function buildGlobalApiKeyFields() {
+            const container = document.getElementById('globalApiKeyFields');
+            if (!container) return;
+            captureApiKeyDrafts('global');
+            container.innerHTML = '';
+            for (const keyName of additionalApiKeys) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'api-key-field';
+                const label = document.createElement('label');
+                label.textContent = keyName;
+                label.htmlFor = `global-api-key-${keyName}`;
+                const input = document.createElement('input');
+                input.id = `global-api-key-${keyName}`;
+                input.type = 'password';
+                input.autocomplete = 'new-password';
+                input.dataset.apiKeyName = keyName;
+                input.value = apiKeyUiState.global.drafts[keyName] || '';
+                input.placeholder = apiKeyUiState.global.configured.has(keyName) ? '已配置；留空保持不变' : '尚未配置';
+                input.oninput = () => { apiKeyUiState.global.drafts[keyName] = input.value; };
+                const toggle = document.createElement('button');
+                toggle.type = 'button';
+                toggle.className = 'neutral-btn';
+                toggle.textContent = '显示';
+                toggle.onclick = () => {
+                    const show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    toggle.textContent = show ? '隐藏' : '显示';
+                };
+                wrapper.append(label, input, toggle);
+                container.appendChild(wrapper);
+            }
+        }
+
+        function getEnteredApiKeys(scope) {
+            captureApiKeyDrafts(scope);
+            const result = {};
+            for (const [name, value] of Object.entries(apiKeyUiState[scope].drafts)) {
+                if (typeof value === 'string' && value.trim()) result[name] = value.trim();
+            }
+            return result;
+        }
+
+        function clearApiKeyDrafts(scope) {
+            document.querySelectorAll(`#${scope}ApiKeyFields input[data-api-key-name]`).forEach(input => {
+                input.value = '';
+            });
+            apiKeyUiState[scope].drafts = {};
+            apiKeyUiState[scope].configured = new Set();
+        }
+
+        function refreshPersistedApiKeyStatus() {
+            emitConsole('get-api-key-status', result => {
+                if (!result?.success) return;
+                setConfiguredApiKeys('create', result.api_key_names || []);
+                setConfiguredApiKeys('global', result.api_key_names || []);
+                buildApiKeyFields('create');
+                buildGlobalApiKeyFields();
+                if (document.getElementById('globalSettingsModal')?.style.display === 'flex') {
+                    renderModelProviderList(document.getElementById('providerSearchInput').value);
+                }
+            });
+        }
+
+        function buildModelSelectors(scope, profile={}, onChange=()=>{}) {
+            const container = document.getElementById(`${scope}ModelSelectors`);
+            if (!container) return;
+            container.className = 'model-config-panel';
+            container.innerHTML = `<h3>模型配置</h3><div class="model-config-grid">
+                ${modelRoles.map(([role, label, , optional]) => createModelGroupMarkup(`${scope}-${role}`, label, optional)).join('')}
+            </div>`;
+            const modelChanged = () => {
+                buildApiKeyFields(scope, onChange);
+                onChange();
+            };
+            for (const [role, , profileKey, optional] of modelRoles) {
+                setupModelGroup(`${scope}-${role}`, profile[profileKey], optional, modelChanged);
+            }
+            buildApiKeyFields(scope, onChange);
+        }
+
+        function readModelGroup(groupId, existingConfig, allowUnset=false) {
+            const provider = document.getElementById(`${groupId}-provider`)?.value ?? '';
+            if (allowUnset && provider === '') return { value: null, error: null };
+
+            const modelSelect = document.getElementById(`${groupId}-model`);
+            const model = (modelSelect?.value === '__settings__' ? '' : modelSelect?.value)?.trim();
+            if (!model) return { value: null, error: '请前往设置为该服务商配置模型列表。' };
+            const url = document.getElementById(`${groupId}-url`)?.value.trim() || '';
+            let params = {};
+            try {
+                params = JSON.parse(document.getElementById(`${groupId}-params`)?.value || '{}');
+            } catch (error) {
+                return { value: null, error: `模型参数 JSON 无效：${error.message}` };
+            }
+            if (!params || typeof params !== 'object' || Array.isArray(params)) {
+                return { value: null, error: '模型参数必须是 JSON 对象。' };
+            }
+            if (provider === 'auto' && !url && Object.keys(params).length === 0) return { value: model, error: null };
+
+            const sameProvider = existingConfig && typeof existingConfig === 'object' && existingConfig.api === provider;
+            const value = sameProvider ? { ...existingConfig, api: provider, model } : { api: provider, model };
+            if (provider === 'auto') delete value.api;
+            if (url) value.url = url;
+            else delete value.url;
+            if (Object.keys(params).length > 0) value.params = params;
+            else delete value.params;
+            return { value, error: null };
+        }
+
+        function profileWithSelectedModels(scope, profile={}) {
+            const nextProfile = readProfileEditor(scope, profile);
+            for (const [role, label, profileKey, optional] of modelRoles) {
+                const selected = readModelGroup(`${scope}-${role}`, nextProfile[profileKey], optional);
+                if (selected.error) throw new Error(`${label}：${selected.error}`);
+                if (selected.value === null) delete nextProfile[profileKey];
+                else nextProfile[profileKey] = selected.value;
+            }
+            return nextProfile;
+        }
+
+        function profileEditorMarkup(scope) {
+            return `<section class="profile-editor">
+                <h3>角色配置</h3>
+                <div class="profile-fields">
+                    <div class="profile-field"><label for="${scope}ProfileName">智能体名称</label><input id="${scope}ProfileName" type="text"></div>
+                    <div class="profile-field"><label for="${scope}ProfileCooldown">回复冷却（毫秒）</label><input id="${scope}ProfileCooldown" type="number" min="0"></div>
+                    <div class="profile-field"><label for="${scope}ProfileMaxTokens">最大输出 Token（可留空）</label><input id="${scope}ProfileMaxTokens" type="number" min="1"></div>
+                    <div class="profile-field"><label for="${scope}ProfileSpeakModel">语音模型（可留空）</label><input id="${scope}ProfileSpeakModel" type="text"></div>
+                </div>
+                <details class="advanced-editor">
+                    <summary>高级角色配置（提示词、模式、示例、NPC、皮肤等 JSON）</summary>
+                    <textarea id="${scope}ProfileAdvanced" spellcheck="false"></textarea>
+                </details>
+            </section>`;
+        }
+
+        function buildProfileEditor(scope, profile={}, onChange=()=>{}) {
+            if (scope === 'agent') {
+                document.getElementById('agentProfileEditor').innerHTML = profileEditorMarkup(scope);
+            }
+            const advanced = Object.fromEntries(
+                Object.entries(profile || {}).filter(([key]) => !managedProfileKeys.has(key))
+            );
+            document.getElementById(`${scope}ProfileName`).value = profile.name || '';
+            document.getElementById(`${scope}ProfileCooldown`).value = profile.cooldown ?? 0;
+            document.getElementById(`${scope}ProfileMaxTokens`).value = profile.max_tokens ?? '';
+            document.getElementById(`${scope}ProfileSpeakModel`).value = profile.speak_model || '';
+            document.getElementById(`${scope}ProfileAdvanced`).value = JSON.stringify(advanced, null, 2);
+            document.querySelectorAll(`#${scope}ProfileName, #${scope}ProfileCooldown, #${scope}ProfileMaxTokens, #${scope}ProfileSpeakModel, #${scope}ProfileAdvanced`)
+                .forEach(input => { input.oninput = onChange; });
+        }
+
+        function readProfileEditor(scope, fallback={}) {
+            let advanced;
+            try {
+                advanced = JSON.parse(document.getElementById(`${scope}ProfileAdvanced`).value || '{}');
+            } catch (error) {
+                throw new Error(`高级角色配置 JSON 无效：${error.message}`);
+            }
+            if (!advanced || typeof advanced !== 'object' || Array.isArray(advanced)) {
+                throw new Error('高级角色配置必须是 JSON 对象。');
+            }
+            const profile = { ...JSON.parse(JSON.stringify(fallback || {})), ...advanced };
+            for (const key of managedProfileKeys) delete profile[key];
+            profile.name = document.getElementById(`${scope}ProfileName`).value.trim();
+            if (!profile.name) throw new Error('请填写智能体名称。');
+            const cooldown = document.getElementById(`${scope}ProfileCooldown`).value;
+            if (cooldown !== '') profile.cooldown = Number(cooldown);
+            const maxTokens = document.getElementById(`${scope}ProfileMaxTokens`).value;
+            if (maxTokens !== '') profile.max_tokens = Number(maxTokens);
+            const speakModel = document.getElementById(`${scope}ProfileSpeakModel`).value.trim();
+            if (speakModel) profile.speak_model = speakModel;
+            return profile;
+        }
+
+        const statusEl = document.getElementById('msStatus');
+        function updateStatus(connected) {
+            if (!statusEl) return;
+            if (connected) {
+                statusEl.textContent = 'MindServer 在线';
+                statusEl.classList.remove('offline');
+                statusEl.classList.add('online');
+            } else {
+                statusEl.textContent = 'MindServer 离线';
+                statusEl.classList.remove('online');
+                statusEl.classList.add('offline');
+            }
+        }
+        function subscribeToState() {
+            socket.emit('listen-to-agents');
+        }
+        // Initial status
+        updateStatus(false);
+        socket.on('connect', () => {
+            updateStatus(true);
+            subscribeToState();
+            refreshPersistedApiKeyStatus();
+            // Clear all cached settings on reconnect
+            Object.keys(agentSettings).forEach(name => delete agentSettings[name]);
+        });
+        socket.on('disconnect', () => {
+            updateStatus(false);
+            if (shutdownRequested) {
+                const status = document.getElementById('shutdownStatus');
+                if (status) status.textContent = 'Mindcraft 已停止。现在可以关闭这个页面。';
+            }
+        });
+        socket.on('connect_error', () => {
+            updateStatus(false);
+        });
+
+        function createSettingInput(key, cfg, value, id, onChange=()=>{}) {
+            let input;
+            if (cfg.options) {
+                input = document.createElement('select');
+                cfg.options.forEach(optionValue => appendOption(input, optionValue, optionValue, optionValue === value));
+            } else if (cfg.type === 'boolean') {
+                input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = value === true;
+            } else if (cfg.type === 'number') {
+                input = document.createElement('input');
+                input.type = 'number';
+                input.value = value ?? cfg.default ?? 0;
+            } else if (cfg.type === 'array' || cfg.type === 'object') {
+                input = document.createElement('textarea');
+                input.rows = 3;
+                const structuredValue = value !== undefined ? value : (cfg.default !== undefined ? cfg.default : (cfg.type === 'array' ? [] : {}));
+                input.value = JSON.stringify(structuredValue, null, 2);
+            } else {
+                input = document.createElement('input');
+                input.type = 'text';
+                input.value = value ?? cfg.default ?? '';
+            }
+            input.id = id;
+            input.disabled = cfg.readOnly === true;
+            input.title = cfg.description || '';
+            input.addEventListener(input.type === 'checkbox' ? 'change' : 'input', onChange);
+            if (input.tagName === 'SELECT') input.addEventListener('change', onChange);
+            return input;
+        }
+
+        function readSettingInput(input, cfg) {
+            if (cfg.readOnly) return cfg.default;
+            if (cfg.type === 'boolean') return input.checked;
+            if (cfg.type === 'number') return Number(input.value);
+            if (cfg.type === 'array' || cfg.type === 'object') {
+                const value = JSON.parse(input.value || (cfg.type === 'array' ? '[]' : '{}'));
+                if (cfg.type === 'array' && !Array.isArray(value)) throw new Error(`${settingLabels[input.dataset.settingKey] || input.dataset.settingKey} 必须是 JSON 数组。`);
+                if (cfg.type === 'object' && value === null && cfg.nullable) return null;
+                if (cfg.type === 'object' && (!value || typeof value !== 'object' || Array.isArray(value))) throw new Error(`${settingLabels[input.dataset.settingKey] || input.dataset.settingKey} 必须是 JSON 对象。`);
+                return value;
+            }
+            return input.value;
+        }
+
+        function buildSettingsForm(values=consoleSettings) {
+            const form = document.getElementById('settingsForm');
+            form.innerHTML = '';
+            // ensure grid for multi-column layout
+            form.style.display = 'grid';
+            form.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+            form.style.gap = '8px';
+            Object.keys(settingsSpec).forEach(key => {
+                if (key === 'profile' || key === 'api_keys' || settingsSpec[key].scope === 'global') return;
+                const cfg = settingsSpec[key];
+                const wrapper = document.createElement('div');
+                wrapper.className = 'setting-wrapper';
+                const label = document.createElement('label');
+                label.textContent = settingLabels[key] || key;
+                label.title = cfg.description || '';
+                const input = createSettingInput(key, cfg, values[key], `setting-${key}`, updateCreateReadiness);
+                input.dataset.settingKey = key;
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+                form.appendChild(wrapper);
+            });
+        }
+
+        async function initializeConsoleConfiguration() {
+            const response = await fetch('/settings_spec.json', { signal: AbortSignal.timeout(8000) });
+            if (!response.ok) throw new Error('无法读取设置定义。');
+            settingsSpec = await response.json();
+            const [result, preferenceResult] = await Promise.all([
+                new Promise(resolve => emitConsole('get-console-settings', resolve)),
+                new Promise(resolve => emitConsole('get-console-preferences', resolve))
+            ]);
+            if (!result?.success || !preferenceResult?.success) throw new Error(result?.error || preferenceResult?.error || '无法读取控制台设置。');
+            const hadDefaultProfile = isAndyPreset(profileData);
+            if (result?.success) consoleSettings = result.settings || {};
+            builtInAndyProfile = result.builtInAndyProfile || null;
+            if (builtInAndyProfile) {
+                document.getElementById('andyPresetDetail').textContent = `本机 ${andyPresetLabel()} · 127.0.0.1:1235`;
+            }
+            if (preferenceResult?.success) consolePreferences = preferenceResult.preferences || consolePreferences;
+            applyAppearance(consolePreferences.appearance);
+            await refreshProfileLibrary();
+            if (!profileData || (builtInAndyProfile && hadDefaultProfile)) profileData = andyPreset();
+            buildSettingsForm(consoleSettings);
+            buildProfileEditor('create', profileData || {}, updateCreateReadiness);
+            buildModelSelectors('create', profileData || {}, updateCreateReadiness);
+            updateCreateReadiness();
+            if (isAndyPreset(profileData)) {
+                document.getElementById('profileStatus').textContent = andyPresetStatus();
+            }
+        }
+
+        initializeConsoleConfiguration().catch(error => {
+            document.getElementById('createError').textContent = `初始化控制台配置失败：${error.message}`;
+        });
+
+        function updateCreateReadiness() {
+            try {
+                const currentProfile = profileWithSelectedModels('create', profileData || {});
+                document.getElementById('createError').textContent = '';
+                document.getElementById('submitCreateAgentBtn').disabled = false;
+                document.getElementById('andyPresetCard').classList.toggle(
+                    'selected',
+                    isAndyPreset(currentProfile)
+                );
+            } catch {
+                document.getElementById('submitCreateAgentBtn').disabled = true;
+                document.getElementById('andyPresetCard').classList.remove('selected');
+            }
+        }
+
+        function applyCreateProfile(profile, sourceLabel='已载入') {
+            profileData = JSON.parse(JSON.stringify(profile || {}));
+            buildProfileEditor('create', profileData, updateCreateReadiness);
+            buildModelSelectors('create', profileData, updateCreateReadiness);
+            document.getElementById('profileStatus').textContent = `配置档案：${profileData.name || sourceLabel}`;
+            document.getElementById('andyPresetCard').classList.toggle(
+                'selected',
+                isAndyPreset(profileData)
+            );
+            document.getElementById('createError').textContent = '';
+            updateCreateReadiness();
+        }
+
+        async function refreshProfileLibrary(selectedPath='') {
+            const result = await new Promise(resolve => emitConsole('list-profiles', resolve));
+            if (!result?.success) throw new Error(result?.error || '无法读取角色配置库');
+            profileLibrary = result.profiles || [];
+            const select = document.getElementById('profileLibrarySelect');
+            select.innerHTML = '<option value="">新建空白角色</option>';
+            profileLibrary.forEach(item => appendOption(select, item.path, `${item.name}${item.model ? ` · ${item.model}` : ''}`, item.path === selectedPath));
+            return profileLibrary;
+        }
+
+        document.getElementById('useAndyPresetBtn').addEventListener('click', () => {
+            applyCreateProfile(andyPreset(), andyPresetLabel());
+            document.getElementById('profileStatus').textContent = andyPresetStatus();
+        });
+
+        document.getElementById('loadLibraryProfileBtn').addEventListener('click', () => {
+            const profilePath = document.getElementById('profileLibrarySelect').value;
+            if (!profilePath) {
+                applyCreateProfile({}, '空白角色');
+                return;
+            }
+            emitConsole('load-profile', profilePath, result => {
+                if (!result?.success) {
+                    document.getElementById('createError').textContent = result?.error || '载入角色失败';
+                    return;
+                }
+                applyCreateProfile(result.profile, profilePath);
+            });
+        });
+
+        document.getElementById('uploadProfileBtn').addEventListener('click', () => {
+            document.getElementById('profileFileInput').click();
+        });
+
+        document.getElementById('profileFileInput').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                try {
+                    applyCreateProfile(JSON.parse(ev.target.result), file.name);
+                } catch (err) {
+                    document.getElementById('createError').textContent = '配置档案 JSON 无效：' + err.message;
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        document.getElementById('saveProfileBtn').addEventListener('click', () => {
+            let profile;
+            try {
+                profile = profileWithSelectedModels('create', profileData || {});
+            } catch (error) {
+                document.getElementById('createError').textContent = error.message;
+                return;
+            }
+            emitConsole('save-profile', profile, async result => {
+                if (!result?.success) {
+                    document.getElementById('createError').textContent = result?.error || '保存角色失败';
+                    return;
+                }
+                await refreshProfileLibrary(result.path);
+                profileData = profile;
+                document.getElementById('profileStatus').textContent = `已保存到角色库：${result.path}`;
+                document.getElementById('createError').textContent = '';
+            });
+        });
+
+        document.getElementById('submitCreateAgentBtn').addEventListener('click', () => {
+            let selectedProfile;
+            let settings;
+            try {
+                selectedProfile = profileWithSelectedModels('create', profileData || {});
+                settings = { profile: selectedProfile };
+                Object.keys(settingsSpec).forEach(key => {
+                    if (key === 'profile' || key === 'api_keys' || settingsSpec[key].scope === 'global') return;
+                    const input = document.getElementById(`setting-${key}`);
+                    if (!input) return;
+                    settings[key] = readSettingInput(input, settingsSpec[key]);
+                });
+            } catch (err) {
+                document.getElementById('createError').textContent = err.message;
+                return;
+            }
+            settings.api_keys = getEnteredApiKeys('create');
+            emitConsole('create-agent', settings, res => {
+                if (!res.success) {
+                    document.getElementById('createError').textContent = res.error || '未知错误';
+                } else {
+                    // reset on success
+                    profileData = andyPreset();
+                    clearApiKeyDrafts('create');
+                    setConfiguredApiKeys('create', res.api_key_names || []);
+                    buildProfileEditor('create', profileData, updateCreateReadiness);
+                    buildModelSelectors('create', profileData, updateCreateReadiness);
+                    document.getElementById('andyPresetCard').classList.add('selected');
+                    document.getElementById('profileStatus').textContent = andyPresetStatus();
+                    document.getElementById('createError').textContent = '';
+                    hideCreateAgentModal();
+                }
+            });
+        });
+
+        // Modal open/close logic
+        const modalBackdrop = document.getElementById('createAgentModal');
+        document.getElementById('openCreateAgentBtn').addEventListener('click', () => {
+            modalBackdrop.style.display = 'flex';
+            try {
+                if (!profileData) {
+                    profileData = andyPreset();
+                    buildProfileEditor('create', profileData, updateCreateReadiness);
+                    buildModelSelectors('create', profileData, updateCreateReadiness);
+                }
+                buildSettingsForm(consoleSettings);
+                updateCreateReadiness();
+            } catch (error) {
+                document.getElementById('createError').textContent = `无法打开新建表单：${error.message}`;
+            }
+        });
+        function hideCreateAgentModal() {
+            modalBackdrop.style.display = 'none';
+        }
+        document.getElementById('closeCreateAgentBtn').addEventListener('click', hideCreateAgentModal);
+
+        const globalSettingsModal = document.getElementById('globalSettingsModal');
+
+        function buildGlobalSettingsForm() {
+            const form = document.getElementById('globalSettingsForm');
+            form.innerHTML = '';
+            const orderedKeys = Object.keys(settingsSpec).filter(key =>
+                key !== 'profile' && key !== 'api_keys' && key !== 'task' && key in consoleSettings
+            );
+            for (const key of orderedKeys) {
+                const cfg = settingsSpec[key];
+                const wrapper = document.createElement('div');
+                wrapper.className = 'setting-wrapper';
+                const label = document.createElement('label');
+                label.textContent = settingLabels[key] || key;
+                label.title = cfg.description || '';
+                wrapper.appendChild(label);
+
+                if (key === 'profiles') {
+                    const list = document.createElement('div');
+                    list.id = 'global-setting-profiles';
+                    list.className = 'profile-check-list';
+                    const selected = new Set(consoleSettings.profiles || []);
+                    const choices = [...profileLibrary];
+                    for (const configuredPath of selected) {
+                        if (!choices.some(item => item.path === configuredPath)) {
+                            choices.push({ path: configuredPath, name: configuredPath, model: '' });
+                        }
+                    }
+                    if (choices.length === 0) list.innerHTML = '<span class="field-help">角色库为空，请先在“新建智能体”中保存角色。</span>';
+                    choices.forEach(item => {
+                        const row = document.createElement('label');
+                        row.className = 'profile-check';
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.value = item.path;
+                        checkbox.checked = selected.has(item.path);
+                        row.append(checkbox, document.createTextNode(`${item.name}${item.model ? ` · ${item.model}` : ''}`));
+                        list.appendChild(row);
+                    });
+                    wrapper.style.gridColumn = '1 / -1';
+                    wrapper.style.alignItems = 'flex-start';
+                    wrapper.appendChild(list);
+                } else {
+                    const input = createSettingInput(key, cfg, consoleSettings[key], `global-setting-${key}`);
+                    input.dataset.settingKey = key;
+                    wrapper.appendChild(input);
+                }
+                form.appendChild(wrapper);
+            }
+        }
+
+        function readGlobalSettingsForm() {
+            const result = {};
+            for (const key of Object.keys(consoleSettings)) {
+                if (!settingsSpec[key] || key === 'profile' || key === 'api_keys' || key === 'task') continue;
+                if (key === 'profiles') {
+                    result.profiles = [...document.querySelectorAll('#global-setting-profiles input[type="checkbox"]:checked')].map(input => input.value);
+                    continue;
+                }
+                const input = document.getElementById(`global-setting-${key}`);
+                if (input) result[key] = readSettingInput(input, settingsSpec[key]);
+            }
+            return result;
+        }
+
+        let settingsPreferencesSnapshot = null;
+
+        function refreshVisibleModelCatalogs() {
+            for (const scope of ['create', 'agent']) {
+                for (const [role] of modelRoles) {
+                    const groupId = `${scope}-${role}`;
+                    const providerSelect = document.getElementById(`${groupId}-provider`);
+                    const modelSelect = document.getElementById(`${groupId}-model`);
+                    const urlInput = document.getElementById(`${groupId}-url`);
+                    if (!providerSelect || !modelSelect) continue;
+                    const currentModel = modelSelect.value === '__settings__'
+                        ? (modelSelect.dataset.currentModel || '')
+                        : modelSelect.value;
+                    if (providerSelect.value === 'ollama') {
+                        populateOllamaModelOptions(groupId, currentModel, false);
+                    } else if (providerSelect.value) {
+                        populateConfiguredModelOptions(groupId, providerSelect.value, currentModel);
+                    }
+                    if (urlInput?.dataset.inherited === 'true') {
+                        urlInput.value = getProviderCatalog(providerSelect.value).base_url;
+                    }
+                }
+            }
+        }
+
+        async function openGlobalSettings(preferredProvider='') {
+            globalSettingsModal.style.display = 'flex';
+            document.getElementById('globalSettingsMessage').textContent = '';
+            document.getElementById('globalSettingsError').textContent = '';
+            try {
+                settingsPreferencesSnapshot = JSON.parse(JSON.stringify(consolePreferences));
+                buildGlobalSettingsForm();
+                buildGlobalApiKeyFields();
+                document.getElementById('providerSearchInput').value = '';
+                renderModelProviderList();
+                document.getElementById('appearanceTheme').value = consolePreferences.appearance?.theme || 'dark';
+                document.getElementById('appearanceDensity').value = consolePreferences.appearance?.density || 'comfortable';
+                document.getElementById('appearanceMotion').checked = consolePreferences.appearance?.motion !== false;
+                if (preferredProvider) {
+                    setTimeout(() => document.getElementById(`provider-card-${preferredProvider}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 30);
+                }
+                try { await refreshProfileLibrary(); } catch (error) {
+                    document.getElementById('globalSettingsError').textContent = error.message;
+                }
+            } catch (error) {
+                document.getElementById('globalSettingsError').textContent = `无法加载设置：${error.message}`;
+            }
+        }
+        window.openGlobalSettings = openGlobalSettings;
+        document.getElementById('openGlobalSettingsBtn').addEventListener('click', () => openGlobalSettings());
+
+        function closeGlobalSettings() {
+            if (settingsPreferencesSnapshot) {
+                consolePreferences = JSON.parse(JSON.stringify(settingsPreferencesSnapshot));
+                applyAppearance(consolePreferences.appearance);
+                refreshVisibleModelCatalogs();
+            }
+            apiKeyUiState.global.drafts = {};
+            settingsPreferencesSnapshot = null;
+            globalSettingsModal.style.display = 'none';
+        }
+        document.getElementById('closeGlobalSettingsBtn').addEventListener('click', closeGlobalSettings);
+        ['appearanceTheme', 'appearanceDensity', 'appearanceMotion'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => {
+                consolePreferences.appearance = readAppearanceSettings();
+                applyAppearance(consolePreferences.appearance);
+            });
+        });
+        document.getElementById('providerSearchInput').addEventListener('input', event => renderModelProviderList(event.target.value));
+        document.getElementById('closeAddModelBtn').addEventListener('click', closeAddModelModal);
+        document.getElementById('cancelAddModelBtn').addEventListener('click', closeAddModelModal);
+        document.getElementById('confirmAddModelBtn').addEventListener('click', confirmAddModel);
+        document.getElementById('newProviderModelName').addEventListener('keydown', event => {
+            if (event.key === 'Enter') confirmAddModel();
+        });
+        const agentSettingsBackdrop = document.getElementById('agentSettingsModal');
+        [modalBackdrop, agentSettingsBackdrop, globalSettingsModal].forEach(backdrop => {
+            backdrop.addEventListener('click', event => {
+                if (event.target !== backdrop) return;
+                if (backdrop === modalBackdrop) hideCreateAgentModal();
+                else if (backdrop === agentSettingsBackdrop) closeAgentSettings();
+                else closeGlobalSettings();
+            });
+        });
+        document.getElementById('addModelModal').addEventListener('click', event => {
+            if (event.target === event.currentTarget) closeAddModelModal();
+        });
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            if (document.getElementById('addModelModal').style.display === 'flex') closeAddModelModal();
+            else if (globalSettingsModal.style.display === 'flex') closeGlobalSettings();
+            else if (agentSettingsBackdrop.style.display === 'flex') closeAgentSettings();
+            else if (modalBackdrop.style.display === 'flex') hideCreateAgentModal();
+        });
+        document.getElementById('saveGlobalSettingsBtn').addEventListener('click', async () => {
+            const button = document.getElementById('saveGlobalSettingsBtn');
+            let submitted;
+            try {
+                submitted = readGlobalSettingsForm();
+                consolePreferences.appearance = readAppearanceSettings();
+            } catch (error) {
+                document.getElementById('globalSettingsError').textContent = `配置格式错误：${error.message}`;
+                return;
+            }
+            button.disabled = true;
+            try {
+                const keyResult = await new Promise(resolve => emitConsole('set-api-keys', getEnteredApiKeys('global'), resolve));
+                if (!keyResult?.success) {
+                    throw new Error(keyResult?.error || 'API 密钥保存失败');
+                }
+                clearApiKeyDrafts('global');
+                setConfiguredApiKeys('global', keyResult.api_key_names || []);
+                buildGlobalApiKeyFields();
+                const [result, preferenceResult] = await Promise.all([
+                    new Promise(resolve => emitConsole('set-console-settings', submitted, resolve)),
+                    new Promise(resolve => emitConsole('set-console-preferences', consolePreferences, resolve))
+                ]);
+                if (!result?.success) throw new Error(result?.error || '保存运行设置失败');
+                if (!preferenceResult?.success) throw new Error(preferenceResult?.error || '保存模型与外观设置失败');
+                consoleSettings = result.settings || submitted;
+                consolePreferences = preferenceResult.preferences || consolePreferences;
+                settingsPreferencesSnapshot = JSON.parse(JSON.stringify(consolePreferences));
+                applyAppearance(consolePreferences.appearance);
+                buildSettingsForm(consoleSettings);
+                renderModelProviderList(document.getElementById('providerSearchInput').value);
+                refreshVisibleModelCatalogs();
+                setConfiguredApiKeys('create', keyResult.api_key_names || []);
+                buildApiKeyFields('create', updateCreateReadiness);
+                document.getElementById('globalSettingsError').textContent = '';
+                document.getElementById('globalSettingsMessage').textContent = result.restart_required?.length
+                    ? `全部设置已保存。${result.restart_required.map(key => settingLabels[key] || key).join('、')} 将在完整重启后生效。`
+                    : '模型、API、外观和默认值均已保存。';
+            } catch (error) {
+                document.getElementById('globalSettingsError').textContent = error.message;
+            } finally {
+                button.disabled = false;
+            }
+        });
+
+        socket.on('bot-output', (agentName, message) => {
+            agentLastMessage[agentName] = message;
+        });
+
+        socket.on('agent-trace', (agentName, event) => {
+            applyTrace(agentName, event);
+            scheduleThoughtRender(agentName);
+        });
+
+        // Subscribe to aggregated state updates (re-sent on each connect)
+        socket.on('state-update', (states) => {
+            window.lastStates = states;
+            Object.keys(states || {}).forEach(name => {
+                const st = states[name];
+                const healthEl = document.getElementById(`health-${name}`);
+                if (st && !st.error) {
+                    const gp = st.gameplay || {};
+                    if (healthEl && typeof gp.health === 'number') {
+                        const hMax = typeof gp.healthMax === 'number' ? gp.healthMax : 20;
+                        healthEl.textContent = `生命值：${gp.health}/${hMax}`;
+                    }
+                    const posEl = document.getElementById(`pos-${name}`);
+                    const hunEl = document.getElementById(`hunger-${name}`);
+                    const bioEl = document.getElementById(`biome-${name}`);
+                    const modeEl = document.getElementById(`mode-${name}`);
+                    const itemsEl = document.getElementById(`items-${name}`);
+                    const equippedEl = document.getElementById(`equipped-${name}`);
+                    const invGrid = document.getElementById(`inventory-${name}`);
+                    const actionEl = document.getElementById(`action-${name}`);
+                    if (posEl && gp.position) {
+                        const p = gp.position;
+                        posEl.textContent = `位置：x ${p.x}, y ${p.y}, z ${p.z}`;
+                    }
+                    if (hunEl && typeof gp.hunger === 'number') {
+                        const fMax = typeof gp.hungerMax === 'number' ? gp.hungerMax : 20;
+                        hunEl.textContent = `饥饿值：${gp.hunger}/${fMax}`;
+                    }
+                    if (bioEl && gp.biome) bioEl.textContent = `生物群系：${gp.biome}`;
+                    if (modeEl && gp.gamemode) modeEl.textContent = `游戏模式：${gp.gamemode}`;
+                    if (itemsEl && st.inventory) {
+                        const used = st.inventory.stacksUsed ?? 0;
+                        const total = st.inventory.totalSlots ?? 0;
+                        itemsEl.textContent = `背包槽位：${used}/${total}`;
+                    }
+                    if (equippedEl && st.inventory?.equipment) {
+                        const e = st.inventory.equipment;
+                        equippedEl.textContent = `手持物品：${e.mainHand || '无'}`;
+                    }
+                    const armorEl = document.getElementById(`armor-${name}`);
+                    if (armorEl && st.inventory?.equipment) {
+                        const e = st.inventory.equipment;
+                        const armor = [];
+                        if (e.helmet) armor.push(`头部：${e.helmet}`);
+                        if (e.chestplate) armor.push(`胸甲：${e.chestplate}`);
+                        if (e.leggings) armor.push(`护腿：${e.leggings}`);
+                        if (e.boots) armor.push(`靴子：${e.boots}`);
+                        armorEl.textContent = `盔甲：${armor.length ? armor.join('，') : '无'}`;
+                    }
+                    if (actionEl && st.action) {
+                        actionEl.textContent = `当前动作：${st.action.current || '空闲'}`;
+                    }
+                    if (invGrid && st.inventory?.counts) {
+                        const counts = st.inventory.counts;
+                        invGrid.innerHTML = Object.keys(counts).length ?
+                            Object.entries(counts).map(([k, v]) => `<div class="cell">${k}: ${v}</div>`).join('') :
+                            '<div class="cell">（空）</div>';
+                    }
+                }
+            });
+        });
+
+        function fetchAgentSettings(name) {
+            return new Promise((resolve) => {
+                if (agentSettings[name]) { resolve(agentSettings[name]); return; }
+                let settled = false;
+                const finish = (settings) => {
+                    if (settled) return;
+                    settled = true;
+                    if (settings) agentSettings[name] = settings;
+                    resolve(settings || null);
+                };
+                const timer = setTimeout(() => finish(null), 1500);
+                socket.emit('get-settings', name, res => {
+                    clearTimeout(timer);
+                    finish(res?.settings || null);
+                });
+            });
+        }
+
+        // Agent settings modal logic
+        const agentSettingsModal = document.getElementById('agentSettingsModal');
+        const agentSettingsForm = document.getElementById('agentSettingsForm');
+        const applyBtn = document.getElementById('applyAgentSettingsBtn');
+        const discardBtn = document.getElementById('discardAgentSettingsBtn');
+        const closeAgentSettingsBtn = document.getElementById('closeAgentSettingsBtn');
+        const agentSettingsTitle = document.getElementById('agentSettingsTitle');
+        const builtInAndyPanel = document.getElementById('agentBuiltInAndyModel');
+        const builtInAndySelect = document.getElementById('agentBuiltInAndyChoice');
+        const saveBuiltInAndyBtn = document.getElementById('saveAgentBuiltInAndyChoice');
+        const builtInAndyStatus = document.getElementById('agentBuiltInAndyStatus');
+        let currentAgentName = null;
+        let originalAgentSettings = null;
+        let savedAndyChoice = null;
+
+        function loadAgentBuiltInAndyChoice(name) {
+            savedAndyChoice = null;
+            builtInAndyPanel.style.display = 'none';
+            builtInAndySelect.disabled = true;
+            saveBuiltInAndyBtn.disabled = true;
+            emitConsole('get-builtin-andy-model', result => {
+                if (currentAgentName !== name) return;
+                if (!result?.success || !result.choice) {
+                    if (builtInAndyProfile && !result?.success) {
+                        builtInAndyPanel.style.display = '';
+                        builtInAndyStatus.textContent = result?.error || '无法读取已保存的模型选择。';
+                    }
+                    return;
+                }
+                savedAndyChoice = result.choice.model;
+                builtInAndySelect.value = savedAndyChoice;
+                builtInAndySelect.disabled = false;
+                builtInAndyPanel.style.display = '';
+                builtInAndyStatus.textContent = `当前加载 ${andyModelLabels[result.choice.active]}。内置服务由角色共享，保存后在下次启动 Mindcraft 时生效。`;
+            });
+        }
+
+        builtInAndySelect.addEventListener('change', () => {
+            saveBuiltInAndyBtn.disabled = builtInAndySelect.value === savedAndyChoice;
+        });
+
+        saveBuiltInAndyBtn.addEventListener('click', () => {
+            if (!currentAgentName || !savedAndyChoice || builtInAndySelect.disabled) return;
+            const name = currentAgentName;
+            const model = builtInAndySelect.value;
+            builtInAndySelect.disabled = true;
+            saveBuiltInAndyBtn.disabled = true;
+            emitConsole('set-builtin-andy-model', name, model, result => {
+                if (currentAgentName !== name) return;
+                builtInAndySelect.disabled = false;
+                if (!result?.success) {
+                    builtInAndyStatus.textContent = result?.error || '保存模型选择失败。';
+                    saveBuiltInAndyBtn.disabled = false;
+                    return;
+                }
+                savedAndyChoice = model;
+                builtInAndyStatus.textContent = model === 'Auto'
+                    ? '已恢复自动选择，下次启动 Mindcraft 时生效。'
+                    : '已锁定所选模型，下次启动 Mindcraft 时直接加载。';
+            });
+        });
+
+        function buildAgentSettingsForm(settings) {
+            setConfiguredApiKeys('agent', settings.api_key_names || []);
+            buildProfileEditor('agent', settings.profile || {}, onAgentSettingsChanged);
+            document.getElementById('agentProfileName').disabled = true;
+            document.getElementById('agentProfileName').title = '智能体创建后不能改名；如需改名，请新建智能体。';
+            buildModelSelectors('agent', settings.profile || {}, onAgentSettingsChanged);
+            agentSettingsForm.innerHTML = '';
+            agentSettingsForm.style.display = 'grid';
+            agentSettingsForm.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+            agentSettingsForm.style.gap = '8px';
+            Object.keys(settingsSpec).forEach(key => {
+                if (key === 'profile' || key === 'api_keys' || settingsSpec[key].scope === 'global') return;
+                const cfg = settingsSpec[key];
+                const wrapper = document.createElement('div');
+                wrapper.className = 'setting-wrapper';
+                const label = document.createElement('label');
+                label.textContent = settingLabels[key] || key;
+                label.title = cfg.description || '';
+                const input = createSettingInput(key, cfg, settings[key], `agent-setting-${key}`, onAgentSettingsChanged);
+                input.dataset.settingKey = key;
+                wrapper.appendChild(label);
+                wrapper.appendChild(input);
+                agentSettingsForm.appendChild(wrapper);
+            });
+            onAgentSettingsChanged();
+        }
+
+        function openAgentSettings(name) {
+            currentAgentName = name;
+            agentSettingsTitle.textContent = `${name} 的设置`;
+            loadAgentBuiltInAndyChoice(name);
+            fetchAgentSettings(name).then(settings => {
+                clearApiKeyDrafts('agent');
+                originalAgentSettings = JSON.parse(JSON.stringify(settings || {}));
+                buildAgentSettingsForm(settings || {});
+                agentSettingsModal.style.display = 'flex';
+            });
+        }
+        window.openAgentSettings = openAgentSettings;
+
+        function getEditedAgentSettings() {
+            const originalProfile = (originalAgentSettings && originalAgentSettings.profile) || {};
+            const newSettings = {
+                profile: profileWithSelectedModels('agent', originalProfile),
+                api_keys: getEnteredApiKeys('agent')
+            };
+            Object.keys(settingsSpec).forEach(key => {
+                if (key === 'profile' || key === 'api_keys' || settingsSpec[key].scope === 'global') return;
+                const cfg = settingsSpec[key];
+                const input = document.getElementById(`agent-setting-${key}`);
+                if (!input) return;
+                newSettings[key] = readSettingInput(input, cfg);
+            });
+            return newSettings;
+        }
+
+        function shallowEqual(a, b) {
+            if (!a || !b) return false;
+            if (JSON.stringify(a.profile || {}) !== JSON.stringify(b.profile || {})) return false;
+            const keys = Object.keys(settingsSpec).filter(k => k !== 'profile' && settingsSpec[k].scope !== 'global');
+            for (const k of keys) {
+                const va = a[k];
+                const vb = b[k];
+                if (typeof va === 'object' || typeof vb === 'object') {
+                    if (JSON.stringify(va) !== JSON.stringify(vb)) return false;
+                } else if (va !== vb) return false;
+            }
+            return true;
+        }
+
+        function onAgentSettingsChanged() {
+            if (!originalAgentSettings) { applyBtn.disabled = true; return; }
+            try {
+                const edited = getEditedAgentSettings();
+                document.getElementById('agentSettingsError').textContent = '';
+                applyBtn.disabled = shallowEqual(edited, originalAgentSettings);
+            } catch (err) {
+                document.getElementById('agentSettingsError').textContent = err.message;
+                applyBtn.disabled = true;
+            }
+        }
+
+        function closeAgentSettings() {
+            agentSettingsModal.style.display = 'none';
+            currentAgentName = null;
+            originalAgentSettings = null;
+            clearApiKeyDrafts('agent');
+        }
+
+        function updateAgentViewer(name) {
+            const agentEl = document.getElementById(`agent-${name}`);
+            if (!agentEl) return;
+
+            const settings = agentSettings[name];
+            const viewerContainer = agentEl.querySelector('.agent-view-container');
+            if (!viewerContainer) return;
+
+            const agentState = currentAgents.find(a => a.name === name);
+            const shouldShow = agentState?.in_game && settings?.render_bot_view === true;
+            viewerContainer.parentElement.style.display = shouldShow ? '' : 'none';
+        }
+
+        discardBtn.addEventListener('click', () => {
+            if (!currentAgentName || !originalAgentSettings) return;
+            if (savedAndyChoice && !builtInAndySelect.disabled) {
+                builtInAndySelect.value = savedAndyChoice;
+                saveBuiltInAndyBtn.disabled = true;
+            }
+            clearApiKeyDrafts('agent');
+            buildAgentSettingsForm(originalAgentSettings);
+        });
+
+        applyBtn.addEventListener('click', () => {
+            if (!currentAgentName) return;
+            const agentName = currentAgentName;
+            let edited;
+            try {
+                edited = getEditedAgentSettings();
+            } catch (err) {
+                document.getElementById('agentSettingsError').textContent = err.message;
+                return;
+            }
+            applyBtn.disabled = true;
+            emitConsole('set-agent-settings', agentName, edited, result => {
+                applyBtn.disabled = false;
+                if (!result?.success) {
+                    document.getElementById('agentSettingsError').textContent = result?.error || '保存设置失败';
+                    return;
+                }
+
+                agentSettings[agentName] = {
+                    ...edited,
+                    api_keys: {},
+                    api_key_names: result.api_key_names || [],
+                    fetched: true
+                };
+                updateAgentViewer(agentName);
+                if (currentAgentName === agentName) closeAgentSettings();
+            });
+        });
+
+        closeAgentSettingsBtn.addEventListener('click', closeAgentSettings);
+
+
+        function escapeHtml(text) {
+            return String(text ?? '')
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;');
+        }
+
+        function newThoughtTurn(user) {
+            return { user: user || '', steps: [] };
+        }
+
+        function newThinkStep() {
+            return {
+                kind: 'think',
+                thinking: '',
+                shown: '',
+                status: 'thinking',
+                summary: '',
+                startedAt: Date.now(),
+                elapsedMs: 0,
+                userOpen: true,
+                sealed: false,
+                live: true,
+            };
+        }
+
+        function commitLive(turn) {
+            turn.steps.forEach(step => { step.live = false; });
+        }
+
+        function latestDraft(turn) {
+            const last = turn.steps[turn.steps.length - 1];
+            return last && last.kind === 'draft' ? last : null;
+        }
+
+        function latestOpenThink(turn) {
+            for (let i = turn.steps.length - 1; i >= 0; i--) {
+                const step = turn.steps[i];
+                if (step.kind === 'think' && !step.sealed && step.status !== 'done') return step;
+            }
+            return null;
+        }
+
+        function latestTurn(agentName) {
+            if (!agentTraces[agentName]) agentTraces[agentName] = [];
+            const turns = agentTraces[agentName];
+            let turn = turns[turns.length - 1];
+            if (!turn) {
+                turn = newThoughtTurn('');
+                turns.push(turn);
+            }
+            return turn;
+        }
+
+        function applyTrace(agentName, event) {
+            if (!agentTraces[agentName]) agentTraces[agentName] = [];
+            const turns = agentTraces[agentName];
+            if (event.type === 'user') {
+                turns.push(newThoughtTurn(event.text || ''));
+                if (turns.length > 40) turns.splice(0, turns.length - 40);
+                return;
+            }
+            const turn = latestTurn(agentName);
+            if (event.type === 'output-reset') {
+                while (turn.steps.length) {
+                    const last = turn.steps[turn.steps.length - 1];
+                    if (last.kind === 'draft' || (last.kind === 'think' && last.live && (last.sealed || last.thinking.trim()))) {
+                        turn.steps.pop();
+                        continue;
+                    }
+                    break;
+                }
+            } else if (event.type === 'think-start') {
+                const existing = latestOpenThink(turn);
+                if (existing) existing.startedAt = Date.now();
+                else turn.steps.push(newThinkStep());
+            } else if (event.type === 'think-delta') {
+                const step = latestOpenThink(turn) || (turn.steps.push(newThinkStep()), turn.steps[turn.steps.length - 1]);
+                step.thinking += event.text || '';
+                step.shown = step.thinking;
+            } else if (event.type === 'output-delta') {
+                const draft = latestDraft(turn) || (turn.steps.push({ kind: 'draft', text: '', live: true }), turn.steps[turn.steps.length - 1]);
+                draft.text += event.text || '';
+            } else if (event.type === 'tool') {
+                const command = event.text || '';
+                const draft = latestDraft(turn);
+                if (draft) {
+                    const at = command ? draft.text.indexOf(command) : -1;
+                    if (at >= 0) {
+                        const pre = draft.text.slice(0, at).trim();
+                        if (pre) {
+                            draft.kind = 'answer';
+                            draft.text = pre;
+                        } else turn.steps.pop();
+                    } else turn.steps.pop();
+                }
+                commitLive(turn);
+                turn.steps.push({ kind: 'tool', text: command, result: '', live: false });
+            } else if (event.type === 'tool-result') {
+                for (let i = turn.steps.length - 1; i >= 0; i--) {
+                    if (turn.steps[i].kind === 'tool') {
+                        turn.steps[i].result = event.text || '';
+                        break;
+                    }
+                }
+            } else if (event.type === 'answer') {
+                const text = event.text || '';
+                const draft = latestDraft(turn);
+                if (draft) {
+                    draft.kind = 'answer';
+                    if (text) draft.text = text;
+                } else if (text) {
+                    turn.steps.push({ kind: 'answer', text, live: false });
+                }
+                commitLive(turn);
+            } else if (event.type === 'think-end' || event.type === 'generation-end') {
+                const step = latestOpenThink(turn);
+                if (event.type === 'generation-end' && event.status === 'cancelled') {
+                    const draft = latestDraft(turn);
+                    if (draft) { draft.kind = 'answer'; draft.text += '\n（本次生成已停止）'; }
+                }
+                if (event.type === 'generation-end' && event.status === 'failed' && latestDraft(turn)) turn.steps.pop();
+                if (!step) {
+                    commitLive(turn);
+                    return;
+                }
+                step.sealed = true;
+                step.elapsedMs = event.elapsedMs || (Date.now() - step.startedAt);
+                step.shown = step.thinking;
+                if (!step.thinking.trim()) {
+                    const index = turn.steps.indexOf(step);
+                    if (index >= 0) turn.steps.splice(index, 1);
+                } else {
+                    step.status = 'done';
+                    step.userOpen = false;
+                    const prefix = event.status === 'cancelled' ? '已停止 · ' : event.status === 'failed' ? '本次思考已中止 · ' : '';
+                    step.summary = `${prefix}已思考 ${(step.elapsedMs / 1000).toFixed(1)} 秒`;
+                }
+                commitLive(turn);
+            }
+        }
+
+        const chatFollow = {};
+        const chatLock = {};
+        const chatScrollTop = {};
+        let thoughtRenderFrame = 0;
+        const thoughtRenderPending = new Set();
+
+        function chatNearBottom(log) {
+            return log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+        }
+
+        function syncJumpButton(log) {
+            const button = log.parentElement?.querySelector('.jump-bottom');
+            if (!button) return;
+            const name = log.id.slice('thoughtLog-'.length);
+            button.hidden = chatFollow[name] !== false;
+        }
+
+        function scheduleThoughtRender(agentName) {
+            thoughtRenderPending.add(agentName);
+            if (thoughtRenderFrame) return;
+            const raf = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (fn) => fn();
+            thoughtRenderFrame = raf(() => {
+                thoughtRenderFrame = 0;
+                const names = [...thoughtRenderPending];
+                thoughtRenderPending.clear();
+                names.forEach(renderThoughtLog);
+            });
+        }
+
+        function followThinkingViewport(viewport) {
+            if (viewport.dataset.live !== 'true') return;
+            // Measure once after text changes; animation frames only write scrollTop.
+            viewport._thinkingScrollTarget = Math.max(0, (viewport.scrollHeight || 0) - (viewport.clientHeight || 0));
+            const reduceMotion = document.documentElement.dataset.motion === 'off'
+                || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (reduceMotion || typeof requestAnimationFrame !== 'function') {
+                viewport.scrollTop = viewport._thinkingScrollTarget;
+                return;
+            }
+            if (viewport._thinkingScrollFrame) return;
+            let previousTime;
+            const tick = time => {
+                viewport._thinkingScrollFrame = 0;
+                if (!viewport.isConnected || viewport.dataset.live !== 'true') return;
+                const distance = viewport._thinkingScrollTarget - viewport.scrollTop;
+                if (Math.abs(distance) < 1) { viewport.scrollTop = viewport._thinkingScrollTarget; return; }
+                const delta = previousTime === undefined ? 16 : Math.min(64, time - previousTime);
+                previousTime = time;
+                const movement = Math.min(Math.abs(distance), Math.max(1, Math.round(Math.abs(distance) * (1 - Math.exp(-delta / 85)))));
+                viewport.scrollTop += Math.sign(distance) * movement;
+                viewport._thinkingScrollFrame = requestAnimationFrame(tick);
+            };
+            viewport._thinkingScrollFrame = requestAnimationFrame(tick);
+        }
+
+        function updateStreamText(node, text) {
+            if (!node || node._streamText === text) return false;
+            const previous = node._streamText || '';
+            // Keep the same text node while tokens arrive. Never parse streamed HTML.
+            if (text.startsWith(previous) && node.firstChild?.nodeType === 3 && !node.firstChild.nextSibling) {
+                node.firstChild.appendData(text.slice(previous.length));
+            } else node.textContent = text;
+            node._streamText = text;
+            return true;
+        }
+
+        function updateThoughtStreams(log, agentName) {
+            const changedViewports = [];
+            let replyChanged = false;
+            for (const view of log._thoughtStreams || []) {
+                const text = view.step.kind === 'think' ? view.step.shown : view.step.text;
+                if (!updateStreamText(view.node, text || '')) continue;
+                if (view.viewport) changedViewports.push(view.viewport);
+                else replyChanged = true;
+            }
+            // Read layout only after all text writes, and only for changed windows.
+            changedViewports.forEach(followThinkingViewport);
+            if (replyChanged && chatFollow[agentName] !== false) {
+                log.scrollTop = log.scrollHeight;
+                chatScrollTop[agentName] = log.scrollTop;
+            }
+        }
+
+        function renderThoughtLog(agentName) {
+            const log = document.getElementById(`thoughtLog-${agentName}`);
+            if (!log) return;
+            const turns = agentTraces[agentName] || [];
+            const structure = [];
+            for (const turn of turns) {
+                structure.push(turn, turn.user, turn.steps.length);
+                for (const step of turn.steps) {
+                    structure.push(step, step.kind, step.status, step.userOpen, step.summary, step.result);
+                    if (step.kind !== 'think' && step.kind !== 'draft') structure.push(step.text);
+                }
+            }
+            if (log._thoughtStructure?.length === structure.length
+                && structure.every((value, index) => value === log._thoughtStructure[index])) {
+                updateThoughtStreams(log, agentName);
+                return;
+            }
+            const follow = chatFollow[agentName] !== false;
+            const prevTop = log.scrollTop;
+            // Keep the actual scrolling elements across token renders so their
+            // position and animation survive updates to the rest of the chat.
+            const previousViewports = new Map(Array.from(log.querySelectorAll('.think-body'))
+                .map(viewport => [viewport.getAttribute('data-thought-key'), viewport]));
+            const lock = (chatLock[agentName] || 0) + 1;
+            chatLock[agentName] = lock;
+            if (!turns.length) {
+                log.innerHTML = '<div class="thought-empty">思考过程、工具调用会显示在这里。</div>';
+            } else {
+                log.innerHTML = turns.map((turn, turnIndex) => {
+                    let html = '';
+                    if (turn.user) html += `<div class="user-bubble">${escapeHtml(turn.user)}</div>`;
+                    for (let i = 0; i < turn.steps.length; i++) {
+                        const step = turn.steps[i];
+                        if (step.kind === 'think') {
+                            const open = step.status !== 'done' || step.userOpen === true;
+                            const label = step.status === 'done' ? (step.summary || '已思考') : '正在思考 · 实时输出';
+                            const caret = step.status !== 'done' ? '<span class="think-caret"></span>' : '';
+                            html += `<div class="think-block${open ? ' open' : ''}">
+                                <button type="button" class="think-toggle" aria-expanded="${open}" data-agent="${escapeHtml(agentName)}" data-turn="${turnIndex}" data-step="${i}">
+                                    <span>${escapeHtml(label)}</span><span class="think-chevron">›</span>
+                                </button>
+                                <div class="think-body" data-thought-key="${turnIndex}-${i}" data-live="${step.status !== 'done'}" tabindex="0" aria-label="思考过程"><div class="think-content"><span class="think-text">${escapeHtml(step.shown)}</span>${caret}</div></div>
+                            </div>`;
+                        } else if (step.kind === 'tool') {
+                            html += `<div class="think-tool">${escapeHtml(step.text)}</div>`;
+                            if (step.result) html += `<div class="tool-result">${escapeHtml(step.result)}</div>`;
+                        } else if ((step.kind === 'answer' || step.kind === 'draft') && step.text) {
+                            const caret = step.kind === 'draft' ? '<span class="think-caret"></span>' : '';
+                            html += `<div class="answer-text" data-answer-key="${turnIndex}-${i}"><span class="answer-content">${escapeHtml(step.text)}</span>${caret}</div>`;
+                        }
+                    }
+                    return html;
+                }).join('');
+            }
+            log.querySelectorAll('.think-body').forEach(viewport => {
+                const previous = previousViewports.get(viewport.getAttribute('data-thought-key'));
+                if (previous) {
+                    previous.innerHTML = viewport.innerHTML;
+                    previous.dataset.live = viewport.dataset.live;
+                    viewport.replaceWith(previous);
+                    viewport = previous;
+                }
+                followThinkingViewport(viewport);
+            });
+            log._thoughtStructure = structure;
+            log._thoughtStreams = [];
+            turns.forEach((turn, turnIndex) => turn.steps.forEach((step, index) => {
+                if (step.kind === 'think' && step.status !== 'done') {
+                    const viewport = log.querySelector(`[data-thought-key="${turnIndex}-${index}"]`);
+                    const node = viewport?.querySelector('.think-text');
+                    if (node) {
+                        node._streamText = step.shown || '';
+                        log._thoughtStreams.push({ step, node, viewport });
+                    }
+                } else if (step.kind === 'draft') {
+                    const node = log.querySelector(`[data-answer-key="${turnIndex}-${index}"] .answer-content`);
+                    if (node) {
+                        node._streamText = step.text || '';
+                        log._thoughtStreams.push({ step, node });
+                    }
+                }
+            }));
+            if (follow) log.scrollTop = log.scrollHeight;
+            else log.scrollTop = prevTop;
+            chatScrollTop[agentName] = log.scrollTop;
+            syncJumpButton(log);
+            const release = () => {
+                if (chatLock[agentName] === lock) chatLock[agentName] = 0;
+            };
+            if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(release));
+            else release();
+        }
+
+        agentsDiv.addEventListener('click', (event) => {
+            const jump = event.target.closest('.jump-bottom');
+            if (jump) {
+                const name = jump.dataset.agent;
+                const log = document.getElementById(`thoughtLog-${name}`);
+                chatFollow[name] = true;
+                if (log) {
+                    const lock = (chatLock[name] || 0) + 1;
+                    chatLock[name] = lock;
+                    log.scrollTo({ top: log.scrollHeight, behavior: 'smooth' });
+                    const release = () => { if (chatLock[name] === lock) chatLock[name] = 0; };
+                    log.addEventListener('scrollend', release, { once: true });
+                    window.setTimeout(release, 900);
+                }
+                jump.hidden = true;
+                return;
+            }
+            const button = event.target.closest('.think-toggle');
+            if (!button) return;
+            const turn = agentTraces[button.dataset.agent]?.[Number(button.dataset.turn)];
+            const step = turn?.steps?.[Number(button.dataset.step)];
+            if (!step || step.kind !== 'think' || step.status !== 'done') return;
+            step.userOpen = !step.userOpen;
+            if (step.userOpen) {
+                const viewport = document.getElementById(`thoughtLog-${button.dataset.agent}`)
+                    ?.querySelector(`[data-thought-key="${button.dataset.turn}-${button.dataset.step}"]`);
+                if (viewport) viewport.scrollTop = 0;
+            }
+            renderThoughtLog(button.dataset.agent);
+        });
+        agentsDiv.addEventListener('wheel', (event) => {
+            if (event.target.closest('.think-body')) return;
+            const wrap = event.target.closest('.thought-log-wrap');
+            if (!wrap) return;
+            const log = wrap.querySelector('.thought-log');
+            if (!log) return;
+            event.preventDefault();
+            const name = log.id.slice('thoughtLog-'.length);
+            let delta = event.deltaY;
+            if (event.deltaMode === 1) delta *= 16;
+            else if (event.deltaMode === 2) delta *= log.clientHeight || 0;
+            chatLock[name] = 0;
+            if (delta < 0) chatFollow[name] = false;
+            log.scrollTop += delta;
+            chatScrollTop[name] = log.scrollTop;
+            if (chatNearBottom(log)) chatFollow[name] = true;
+            syncJumpButton(log);
+        }, { passive: false });
+        agentsDiv.addEventListener('scroll', (event) => {
+            const log = event.target?.classList?.contains('thought-log') ? event.target : null;
+            if (!log) return;
+            const name = log.id.slice('thoughtLog-'.length);
+            const top = log.scrollTop;
+            const prev = chatScrollTop[name] ?? top;
+            chatScrollTop[name] = top;
+            if (chatLock[name]) return;
+            if (top + 4 < prev) chatFollow[name] = false;
+            else if (chatNearBottom(log)) chatFollow[name] = true;
+            syncJumpButton(log);
+        }, true);
+
+        function renderAgentCard(agent) {
+            const cfg = agentSettings[agent.name] || {};
+            const showViewer = agent.in_game && cfg.render_bot_view === true;
+            const viewerPort = agent.viewerPort;
+            const viewerHTML = showViewer ? `<div class="agent-view-container"><iframe class="agent-viewer" id="viewer-${agent.name}" src="http://127.0.0.1:${viewerPort}/"></iframe></div>` : '';
+            const invOpen = inventoryOpen[agent.name] === true;
+            const invStyle = invOpen ? '' : 'display:none;';
+            return `
+                    <div class="agent" id="agent-${agent.name}">
+                        <div class="agent-grid">
+                            <div class="cell title" style="grid-column: 1 / -1; display:flex; align-items:center; justify-content:space-between;">
+                                <span><span class="status-icon ${agent.in_game ? 'online' : 'offline'}">●</span>${agent.name}${agent.socket_connected && !agent.in_game ? '<span style="margin-left:6px;color:#f0ad4e;">正在加入...</span>' : ''}
+                                    <button class="gear-btn" title="设置" onclick="openAgentSettings('${agent.name}')">⚙</button>
+                                    <button class="gear-btn" title="背包" onclick="toggleDetails('${agent.name}')">背包</button>
+                                    <button class="gear-btn" title="实时诊断日志" onclick="window.open('/diagnostics.html?agent='+encodeURIComponent('${agent.name}'),'_blank','noopener')">日志</button>
+                                    <label class="spectator-auto" title="通过系统提示词让模型从下一次生成起使用简体中文"><input type="checkbox" id="chineseOutput-${agent.name}" ${agent.chinese_output ? 'checked' : ''} onchange="setChineseOutput('${agent.name}',this)">中文输出</label>
+                                    <span id="chineseOutputStatus-${agent.name}" role="status"></span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="agent-stage">
+                            <section class="thought-panel">
+                                <div class="thought-log-wrap">
+                                    <div class="thought-log" id="thoughtLog-${agent.name}"></div>
+                                    <button type="button" class="jump-bottom" data-agent="${agent.name}" hidden>置底</button>
+                                </div>
+                                <div class="thought-compose">
+                                    <div class="thought-compose-row">
+                                        <input class="msg-input" type="text" id="messageInput-${agent.name}" placeholder="输入消息..."
+                                            oninput="onMsgInputChange('${agent.name}')"
+                                            onkeydown="if(event.key === 'Enter') document.getElementById('sendBtn-${agent.name}').click()"
+                                            ${!agent.in_game ? 'disabled' : ''}>
+                                        <button class="start-btn" id="sendBtn-${agent.name}" disabled onclick="sendMessage('${agent.name}', document.getElementById('messageInput-${agent.name}').value)">发送</button>
+                                    </div>
+                                    <div class="thought-compose-row">
+                                        <input class="msg-input spectator-player" type="text" id="spectatorPlayer-${agent.name}"
+                                            aria-label="旁观玩家名" placeholder="你的游戏玩家名" maxlength="16" pattern="[A-Za-z0-9_]{1,16}"
+                                            value="${escapeHtml(agent.spectator?.player || '').replaceAll('"', '&quot;')}"
+                                            onchange="saveSpectatorSettings('${agent.name}')">
+                                        <button class="neutral-btn" id="spectatorBtn-${agent.name}" onclick="switchAgentView('${agent.name}')" ${!agent.world_ready ? 'disabled' : ''}>切换至 agent 视角</button>
+                                        <label class="spectator-auto"><input type="checkbox" id="spectatorAuto-${agent.name}" ${agent.spectator?.auto ? 'checked' : ''}
+                                            onchange="saveSpectatorSettings('${agent.name}')">加入世界后自动切换</label>
+                                    </div>
+                                    <div class="spectator-status" id="spectatorStatus-${agent.name}" role="status">游戏内视角 · 需 agent 有 OP 权限；自动设置保存在服务端</div>
+                                    <div class="thought-compose-row">
+                                        <button class="neutral-btn" onclick="sendMessage('${agent.name}', '!stop')" ${!agent.in_game ? 'disabled' : ''}>停止动作</button>
+                                        <button class="neutral-btn" onclick="sendMessage('${agent.name}', '!stay(-1)')" ${!agent.in_game ? 'disabled' : ''}>原地停留</button>
+                                        <button class="neutral-btn" onclick="restartAgent('${agent.name}')" ${!agent.in_game ? 'disabled' : ''}>重启</button>
+                                        <button class="neutral-btn" ${agent.in_game ? `onclick=\"disconnectAgent('${agent.name}')\"` : (agent.socket_connected ? 'disabled' : `onclick=\"startAgent('${agent.name}')\"`)}>${agent.in_game ? '断开' : (agent.socket_connected ? '正在连接...' : '连接')}</button>
+                                        <button class="stop-btn" onclick="destroyAgent('${agent.name}')">删除</button>
+                                    </div>
+                                </div>
+                            </section>
+                            <aside class="agent-side">
+                                ${showViewer ? `<div class="cell agent-view-cell">${viewerHTML}</div>` : ''}
+                                <div class="agent-side-stats">
+                                    <div class="cell" id="action-${agent.name}">当前动作：-</div>
+                                    <div class="cell" id="mode-${agent.name}">游戏模式：-</div>
+                                    <div class="cell" id="health-${agent.name}">生命值：-</div>
+                                    <div class="cell" id="hunger-${agent.name}">饥饿值：-</div>
+                                    <div class="cell" id="pos-${agent.name}">位置：-</div>
+                                    <div class="cell" id="biome-${agent.name}">生物群系：-</div>
+                                    <div class="cell" id="items-${agent.name}">背包槽位：-</div>
+                                    <div class="cell" id="equipped-${agent.name}">手持物品：-</div>
+                                </div>
+                                <div class="agent-inventory" id="inventorySection-${agent.name}" style="${invStyle}">
+                                    <h3>背包</h3>
+                                    <div class="cell" id="armor-${agent.name}" style="margin-bottom: 8px;">盔甲：-</div>
+                                    <div class="inventory-grid" id="inventory-${agent.name}"></div>
+                                </div>
+                            </aside>
+                        </div>
+                    </div>`;
+        }
+
+        async function renderAgents(agents) {
+            if (!agents.length) {
+                agentsDiv.innerHTML = '<div class="agent">当前没有已连接的智能体</div>';
+                return;
+            }
+
+            // If agentsDiv is empty, do a full render
+            if (!agentsDiv.children.length) {
+                agentsDiv.innerHTML = agents.map(agent => renderAgentCard(agent)).join('');
+                // Update all viewers after initial render
+                setTimeout(() => {
+                    agents.forEach(a => {
+                        if (a.in_game) updateAgentViewer(a.name);
+                        renderThoughtLog(a.name);
+                    });
+                }, 0);
+                return;
+            }
+
+            // Compare with current agents to find changes
+            const prevAgents = currentAgents.reduce((acc, a) => ({ ...acc, [a.name]: a }), {});
+            const changedAgents = agents.filter(a => {
+                const prev = prevAgents[a.name];
+                return !prev || prev.in_game !== a.in_game || prev.viewerPort !== a.viewerPort || prev.socket_connected !== a.socket_connected || prev.world_ready !== a.world_ready || JSON.stringify(prev.spectator) !== JSON.stringify(a.spectator);
+            });
+
+            // Update only changed agents
+            changedAgents.forEach(agent => {
+                const el = document.getElementById(`agent-${agent.name}`);
+                if (el) {
+                    // Update existing card
+                    el.outerHTML = renderAgentCard(agent);
+                    if (agent.in_game) updateAgentViewer(agent.name);
+                } else {
+                    // Add new card
+                    agentsDiv.insertAdjacentHTML('beforeend', renderAgentCard(agent));
+                    if (agent.in_game) updateAgentViewer(agent.name);
+                }
+                renderThoughtLog(agent.name);
+            });
+
+            // Remove cards for agents that no longer exist
+            Array.from(agentsDiv.children).forEach(el => {
+                const name = el.id.replace('agent-', '');
+                if (!agents.find(a => a.name === name)) {
+                    el.remove();
+                    delete inventoryOpen[name];
+                }
+            });
+        }
+
+        socket.on('agents-status', async (agents) => {
+            for (const agent of agents) {
+                const checkbox = document.getElementById(`chineseOutput-${agent.name}`);
+                if (checkbox) checkbox.checked = agent.chinese_output === true;
+            }
+            // Fetch settings for all agents that don't have current settings
+            const needSettings = agents.filter(a => !agentSettings[a.name]);
+            if (needSettings.length > 0) {
+                await Promise.all(needSettings.map(async (a) => {
+                    const settings = await fetchAgentSettings(a.name);
+                    if (settings) {
+                        agentSettings[a.name] = settings;
+                    }
+                }));
+            }
+
+            // Compare with current agents to find changes
+            const prevAgents = currentAgents.reduce((acc, a) => ({ ...acc, [a.name]: a }), {});
+            const changedAgents = agents.filter(a => {
+                const prev = prevAgents[a.name];
+                return !prev || prev.in_game !== a.in_game || prev.viewerPort !== a.viewerPort || prev.socket_connected !== a.socket_connected || prev.world_ready !== a.world_ready || JSON.stringify(prev.spectator) !== JSON.stringify(a.spectator);
+            });
+
+            // Update current agents list
+            currentAgents = agents;
+
+            // If agentsDiv is empty, do a full render
+            if (!agentsDiv.children.length) {
+                agentsDiv.innerHTML = agents.map(agent => renderAgentCard(agent)).join('');
+                // Update all viewers after initial render
+                setTimeout(() => {
+                    agents.forEach(a => {
+                        if (a.in_game) updateAgentViewer(a.name);
+                        renderThoughtLog(a.name);
+                    });
+                }, 0);
+                return;
+            }
+
+            // Update only changed agents
+            changedAgents.forEach(agent => {
+                const el = document.getElementById(`agent-${agent.name}`);
+                if (el) {
+                    // Update existing card
+                    el.outerHTML = renderAgentCard(agent);
+                    if (agent.in_game) updateAgentViewer(agent.name);
+                } else {
+                    // Add new card
+                    agentsDiv.insertAdjacentHTML('beforeend', renderAgentCard(agent));
+                    if (agent.in_game) updateAgentViewer(agent.name);
+                }
+                renderThoughtLog(agent.name);
+            });
+
+            // Remove cards for agents that no longer exist
+            Array.from(agentsDiv.children).forEach(el => {
+                const name = el.id.replace('agent-', '');
+                if (!agents.find(a => a.name === name)) {
+                    el.remove();
+                    delete inventoryOpen[name];
+                }
+            });
+        });
+
+        function spectatorStatus(name, message) {
+            const status = document.getElementById(`spectatorStatus-${name}`);
+            if (status) status.textContent = message;
+        }
+
+        function spectatorRequest(event, args) {
+            return new Promise(resolve => {
+                socket.timeout(8000).emit(event, ...args, (error, result) => {
+                    resolve(error ? { success: false, error: '请求超时，请检查控制台与 agent 的连接。' } : result);
+                });
+            });
+        }
+
+        async function saveSpectatorSettings(name) {
+            const playerInput = document.getElementById(`spectatorPlayer-${name}`);
+            const autoInput = document.getElementById(`spectatorAuto-${name}`);
+            const player = playerInput.value.trim();
+            if ((player || autoInput.checked) && !/^[A-Za-z0-9_]{1,16}$/.test(player)) {
+                autoInput.checked = currentAgents.find(a => a.name === name)?.spectator?.auto || false;
+                spectatorStatus(name, '请输入有效的游戏玩家名（1–16 位字母、数字或下划线）。');
+                return;
+            }
+            const result = await spectatorRequest('set-spectator-settings', [name, { player, auto: autoInput.checked }]);
+            if (!result?.success) {
+                autoInput.checked = currentAgents.find(a => a.name === name)?.spectator?.auto || false;
+                spectatorStatus(name, result?.error || '保存失败。');
+            } else {
+                spectatorStatus(name, '设置已保存；自动开启时会在 agent 或玩家加入世界后切换。');
+            }
+        }
+
+        async function switchAgentView(name) {
+            const player = document.getElementById(`spectatorPlayer-${name}`).value.trim();
+            const button = document.getElementById(`spectatorBtn-${name}`);
+            button.disabled = true;
+            spectatorStatus(name, '正在发送游戏内视角切换指令…');
+            try {
+                const result = await spectatorRequest('switch-agent-view', [name, player]);
+                spectatorStatus(name, result?.success ? result.message : result?.error || '切换失败。');
+            } finally {
+                const currentButton = document.getElementById(`spectatorBtn-${name}`);
+                if (currentButton) currentButton.disabled = !currentAgents.find(a => a.name === name)?.world_ready;
+            }
+        }
+
+        socket.on('spectator-result', (name, result) => {
+            spectatorStatus(name, result?.success ? result.message : result?.error || '自动切换失败。');
+        });
+
+        function restartAgent(n) { socket.emit('restart-agent', n); }
+        function disconnectAgent(n) { socket.emit('stop-agent', n); }
+        function startAgent(n) { 
+            const btn = document.querySelector(`button[onclick="startAgent('${n}')"]`);
+            if (btn) {
+                btn.textContent = '正在连接...';
+                btn.disabled = true;
+                // Re-enable after 10s if still disabled (agent failed to connect)
+                setTimeout(() => {
+                    const retryBtn = document.querySelector(`button[onclick=\\"startAgent('${n}')\\"]`);
+                    const agentState = (window.currentAgents || []).find(a => a.name === n);
+                    const stillWaiting = agentState ? (!agentState.in_game && !agentState.socket_connected) : true;
+                    if (retryBtn && stillWaiting) {
+                        retryBtn.disabled = false;
+                        retryBtn.textContent = '连接';
+                    }
+                }, 10000);
+            }
+            socket.emit('start-agent', n);
+        }
+        function stopAgent(n) { socket.emit('stop-agent', n); }
+        function destroyAgent(n) { socket.emit('destroy-agent', n); }
+        function disconnectAllAgents() { 
+            socket.emit('stop-all-agents'); 
+        }
+        const shutdownConfirmModal = document.getElementById('shutdownConfirmModal');
+        const cancelShutdownBtn = document.getElementById('cancelShutdownBtn');
+        const executeShutdownBtn = document.getElementById('confirmShutdownBtn');
+        function confirmShutdown() {
+            if (shutdownRequested) return;
+            document.getElementById('shutdownStatus').textContent = '';
+            shutdownConfirmModal.style.display = 'flex';
+        }
+        cancelShutdownBtn.addEventListener('click', () => {
+            if (!shutdownRequested) shutdownConfirmModal.style.display = 'none';
+        });
+        shutdownConfirmModal.addEventListener('click', event => {
+            if (event.target === shutdownConfirmModal && !shutdownRequested) shutdownConfirmModal.style.display = 'none';
+        });
+        executeShutdownBtn.addEventListener('click', () => {
+            if (shutdownRequested) return;
+            shutdownRequested = true;
+            executeShutdownBtn.disabled = true;
+            cancelShutdownBtn.disabled = true;
+            document.getElementById('shutdownMindcraftBtn').disabled = true;
+            document.getElementById('shutdownStatus').textContent = '正在停止智能体并关闭 MindServer…';
+            emitConsole('shutdown', result => {
+                if (!result?.success) {
+                    shutdownRequested = false;
+                    executeShutdownBtn.disabled = false;
+                    cancelShutdownBtn.disabled = false;
+                    document.getElementById('shutdownMindcraftBtn').disabled = false;
+                    document.getElementById('shutdownStatus').textContent = result?.error || '无法发送结束请求。';
+                    return;
+                }
+                document.getElementById('shutdownStatus').textContent = '结束请求已接受，后台进程即将退出…';
+            });
+        });
+        function sendMessage(n, m) {
+            if (!m || !m.trim()) return;
+            socket.emit('send-message', n, { from: 'ADMIN', message: m });
+            const input = document.getElementById(`messageInput-${n}`);
+            const btn = document.getElementById(`sendBtn-${n}`);
+            if (input) input.value = '';
+            if (btn) btn.disabled = true;
+        }
+        function onMsgInputChange(name) {
+            const input = document.getElementById(`messageInput-${name}`);
+            const btn = document.getElementById(`sendBtn-${name}`);
+            if (btn && input) {
+                btn.disabled = !(input.value && input.value.trim().length > 0);
+            }
+        }
+
+        function toggleDetails(name) {
+            const invSection = document.getElementById(`inventorySection-${name}`);
+            if (!invSection) return;
+            const visible = invSection.style.display !== 'none';
+            const newVisible = !visible;
+            invSection.style.display = newVisible ? '' : 'none';
+            inventoryOpen[name] = newVisible;
+        }
+        window.toggleDetails = toggleDetails;
+    </script>
+</body>
+</html> 

@@ -1,0 +1,210 @@
+import net from 'net';
+import { resolveSrv } from 'dns/promises';
+import mc from 'minecraft-protocol';
+
+/**
+ * Pings a Minecraft server and returns its advertised metadata.
+ * @param {string} ip - The IP address to scan.
+ * @param {number} port - The port to check.
+ * @param {number} timeout - The connection timeout in ms.
+ * @param {boolean} verbose - Whether to print output on connection errors.
+ * @returns {Promise<Object|null>}
+ */
+export function serverInfo(ip, port, timeout = 1000, verbose = false) {
+    return new Promise((resolve) => {
+        let settled = false;
+        let pingClient;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeoutId);
+            // Settling the scan must also release the protocol connection.
+            pingClient?.socket?.destroy();
+            resolve(value);
+        };
+
+        const timeoutId = setTimeout(() => {
+            if (verbose)
+                console.error(`Timeout pinging server ${ip}:${port}`);
+            finish(null);
+        }, timeout);
+
+        const connect = (client) => {
+            pingClient = client;
+            const openSocket = (host, targetPort) => {
+                if (!settled)
+                    client.setSocket(net.createConnection({ host, port: targetPort }));
+            };
+
+            // Preserve minecraft-protocol's SRV lookup for default-port domains.
+            if (Number(port) === 25565 && net.isIP(ip) === 0 && ip !== 'localhost') {
+                resolveSrv(`_minecraft._tcp.${ip}`).then(records => {
+                    const target = records[0];
+                    openSocket(target?.name || ip, target?.port || port);
+                }, () => openSocket(ip, port)).catch(() => finish(null));
+            } else {
+                openSocket(ip, port);
+            }
+        };
+
+        mc.ping({
+            host: ip,
+            port,
+            closeTimeout: timeout,
+            noPongTimeout: timeout,
+            connect,
+        }, (err, response) => {
+            if (settled) return;
+            if (err) {
+                if (verbose)
+                    console.error(`Error pinging server ${ip}:${port}`, err);
+                return finish(null);
+            }
+
+            const version = response?.version?.name || '';
+            const match = String(version).match(/\d+\.\d+(?:\.\d+)?/);
+            const numericVersion = match ? match[0] : null;
+            if (verbose && numericVersion !== version) {
+                console.log(`Modded server found (${version}), attempting to use ${numericVersion}...`);
+            }
+
+            const description = response?.description;
+            const name = typeof description === 'string'
+                ? description
+                : description?.text || 'No description provided.';
+
+            finish({
+                host: ip,
+                port,
+                name,
+                ping: response?.latency,
+                version: numericVersion
+            });
+        });
+    });
+}
+
+function checkPort(ip, port, timeout) {
+    return new Promise((resolve) => {
+        const socket = net.createConnection({ host: ip, port, timeout });
+        let settled = false;
+
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            socket.destroy();
+            resolve(value);
+        };
+
+        socket.once('connect', () => finish(port));
+        socket.once('error', () => finish(null));
+        socket.once('timeout', () => finish(null));
+    });
+}
+
+export function resolveScanOptions(options = {}) {
+    const startPort = options.startPort ?? 49000;
+    const endPort = options.endPort ?? 65000;
+    const concurrency = options.concurrency ?? 64;
+    const pingTimeout = options.pingTimeout ?? 200;
+
+    for (const [name, value] of Object.entries({ startPort, endPort, concurrency, pingTimeout })) {
+        if (!Number.isInteger(value))
+            throw new Error(`${name} must be an integer.`);
+    }
+    if (startPort < 1 || endPort > 65535 || startPort > endPort)
+        throw new Error('Scan port range must be within 1..65535 and startPort must not exceed endPort.');
+    if (concurrency < 1 || concurrency > 512)
+        throw new Error('concurrency must be between 1 and 512.');
+    if (pingTimeout < 1)
+        throw new Error('pingTimeout must be positive.');
+
+    return { startPort, endPort, concurrency, pingTimeout };
+}
+
+/**
+ * Scans the normal Minecraft LAN port range using bounded concurrency.
+ * @param {string} ip - The IP address to scan.
+ * @param {boolean} earlyExit - Whether to stop once a server is found.
+ * @param {number} timeout - Per-port TCP timeout in ms.
+ * @param {Object} options - Optional scan range/concurrency/ping timeout overrides.
+ * @returns {Promise<Array>}
+ */
+export async function findServers(ip, earlyExit = false, timeout = 100, options = {}) {
+    const servers = [];
+    const { startPort, endPort, concurrency, pingTimeout } = resolveScanOptions(options);
+    let nextPort = startPort;
+    let stop = false;
+
+    async function worker() {
+        while (!stop) {
+            const port = nextPort++;
+            if (port > endPort) return;
+
+            const openPort = await checkPort(ip, port, timeout);
+            if (!openPort || stop) continue;
+
+            const server = await serverInfo(ip, openPort, pingTimeout, false);
+            if (!server || stop) continue;
+
+            servers.push(server);
+            if (earlyExit) {
+                stop = true;
+                return;
+            }
+        }
+    }
+
+    const workerCount = Math.min(concurrency, endPort - startPort + 1);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
+    servers.sort((a, b) => a.port - b.port);
+
+    return earlyExit ? servers.slice(0, 1) : servers;
+}
+
+/**
+ * Gets the MC server info from the host and port.
+ * @param {string} host - The host to search for.
+ * @param {number} port - The port to search for.
+ * @param {string} version - The version to search for.
+ * @returns {Promise<Object>} - A Promise that resolves to the server info object.
+ */
+export async function getServer(host, port, version) {
+    let server = null;
+
+    if (port == -1) {
+        console.log(`No port provided. Searching for LAN server on host ${host}...`);
+        const servers = await findServers(host, true);
+        if (servers.length > 0)
+            server = servers[0];
+
+        if (server == null)
+            throw new Error('No server found on LAN.');
+    }
+    else {
+        server = await serverInfo(host, port, 1000, true);
+    }
+
+    if (server == null)
+        throw new Error(`MC server not found. (Host: ${host}, Port: ${port}) Check the host and port in settings.js, and ensure the server is running and open to public or LAN.`);
+
+    const serverString = `(Host: ${server.host}, Port: ${server.port}, Version: ${server.version})`;
+    const serverVersion = version === 'auto' ? server.version : version;
+
+    if (!serverVersion) {
+        throw new Error(`MC server was found ${serverString}, but its Minecraft version could not be determined.`);
+    }
+
+    const isSupported = mc.supportedVersions.some(v =>
+        serverVersion === v || (serverVersion.startsWith(v) && serverVersion.charAt(v.length) === '.')
+    );
+
+    if (!isSupported)
+        throw new Error(`MC server was found ${serverString}, but version is unsupported. Supported versions are: ${mc.supportedVersions.join(', ')}.`);
+    else if (version !== 'auto' && server.version !== version)
+        throw new Error(`MC server was found ${serverString}, but version is incorrect. Expected ${version}, but found ${server.version}. Check the server version in settings.js.`);
+    else
+        console.log(`MC server found. ${serverString}`);
+
+    return server;
+}

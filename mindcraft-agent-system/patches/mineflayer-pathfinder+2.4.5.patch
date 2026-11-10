@@ -1,0 +1,190 @@
+diff --git a/node_modules/mineflayer-pathfinder/index.js b/node_modules/mineflayer-pathfinder/index.js
+--- a/node_modules/mineflayer-pathfinder/index.js
++++ b/node_modules/mineflayer-pathfinder/index.js
+@@ -61,6 +61,7 @@
+   }
+
+   bot.pathfinder.getPathTo = (movements, goal, timeout) => {
++    movements.updateLavaAvoidance()
+     const generator = bot.pathfinder.getPathFromTo(movements, bot.entity.position, goal, { timeout })
+     const { value: { result, astarContext: context } } = generator.next()
+     astarContext = context
+@@ -160,6 +161,9 @@
+   }
+
+   bot.pathfinder.stop = () => {
++    // Nothing is running, so there is nothing to stop; the flag would otherwise survive until the
++    // next goal and stop that one instead.
++    if (!stateGoal && path.length === 0) return
+     stopPathing = true
+   }
+
+@@ -168,9 +172,16 @@
+   function postProcessPath (path) {
+     for (let i = 0; i < path.length; i++) {
+       const curPoint = path[i]
+-      if (curPoint.toBreak.length > 0 || curPoint.toPlace.length > 0) break
++      // A useOne (open a gate/door on the way through) is a click, not a placement:
++      // it must not stop the pass, or this node and every one after it keep their
++      // raw corner coordinates and the executor steers into the frame
++      if (curPoint.toBreak.length > 0 || curPoint.toPlace.some(p => !p.useOne)) break
+       const b = bot.blockAt(new Vec3(curPoint.x, curPoint.y, curPoint.z))
+-      if (b && (b.type === waterType || ((b.type === ladderId || b.type === vineId) && i + 1 < path.length && path[i + 1].y < curPoint.y))) {
++      // An openable block is a doorway: its node is the floor centre. getPositionOnTopOf
++      // would put it on top of the swung-open leaf (offset ~0.9 and a block up), which
++      // the walk simulation can never reach — the bot stands in the open doorway until 'stuck'
++      const doorway = stateMovements && stateMovements.openable && b && stateMovements.openable.has(b.type)
++      if (b && (b.type === waterType || doorway || ((b.type === ladderId || b.type === vineId) && i + 1 < path.length && path[i + 1].y < curPoint.y))) {
+         curPoint.x = Math.floor(curPoint.x) + 0.5
+         curPoint.y = Math.floor(curPoint.y)
+         curPoint.z = Math.floor(curPoint.z) + 0.5
+@@ -524,6 +535,7 @@
+         bot.activateBlock(bot.blockAt(new Vec3(placingBlock.x, placingBlock.y, placingBlock.z))).then(() => {
+           lockUseBlock.release()
+           placingBlock = nextPoint.toPlace.shift()
++          if (!placingBlock) placing = false
+         }, err => {
+           console.error(err)
+           lockUseBlock.release()
+@@ -557,6 +569,7 @@
+               .then(function () {
+                 // Dont release Sneak if the block placement was not successful
+                 bot.setControlState('sneak', false)
++                bot.setControlState('jump', false)
+                 if (bot.pathfinder.LOSWhenPlacingBlocks && placingBlock.returnPos) returningPos = placingBlock.returnPos.clone()
+               })
+               .catch(_ignoreError => {
+@@ -609,6 +622,9 @@
+     bot.setControlState('jump', false)
+
+     if (bot.entity.isInWater) {
++      bot.setControlState('jump', true)
++      bot.setControlState('sprint', false)
++    } else if (bot.entity.isInLava) {
+       bot.setControlState('jump', true)
+       bot.setControlState('sprint', false)
+     } else if (stateMovements.allowSprinting && physics.canStraightLine(path, true)) {
+diff --git a/node_modules/mineflayer-pathfinder/lib/movements.js b/node_modules/mineflayer-pathfinder/lib/movements.js
+--- a/node_modules/mineflayer-pathfinder/lib/movements.js
++++ b/node_modules/mineflayer-pathfinder/lib/movements.js
+@@ -50,7 +50,7 @@
+     this.blocksToAvoid.add(registry.blocksByName.fire.id)
+     if (registry.blocksByName.cobweb) this.blocksToAvoid.add(registry.blocksByName.cobweb.id)
+     if (registry.blocksByName.web) this.blocksToAvoid.add(registry.blocksByName.web.id)
+-    this.blocksToAvoid.add(registry.blocksByName.lava.id)
++    this.updateLavaAvoidance()
+
+     this.liquids = new Set()
+     this.liquids.add(registry.blocksByName.water.id)
+@@ -62,7 +62,7 @@
+
+     this.climbables = new Set()
+     this.climbables.add(registry.blocksByName.ladder.id)
+-    // this.climbables.add(registry.blocksByName.vine.id)
++    this.climbables.add(registry.blocksByName.vine.id)
+     this.emptyBlocks = new Set()
+
+     this.replaceables = new Set()
+@@ -92,13 +92,13 @@
+       }
+     })
+     registry.blocksArray.forEach(block => {
+-      if (this.interactableBlocks.has(block.name) && block.name.toLowerCase().includes('gate') && !block.name.toLowerCase().includes('iron')) {
++      if (this.interactableBlocks.has(block.name) && (block.name.endsWith('_fence_gate') || block.name.endsWith('_door')) && !block.name.toLowerCase().includes('iron')) {
+         // console.info(block)
+         this.openable.add(block.id)
+       }
+     })
+
+-    this.canOpenDoors = false // Causes issues. Probably due to none paper servers.
++    this.canOpenDoors = true
+
+     this.exclusionAreasStep = []
+     this.exclusionAreasBreak = []
+@@ -284,6 +284,7 @@
+     cost += this.exclusionStep(block) // Is excluded so can't move or break
+     cost += this.getNumEntitiesAt(block.position, 0, 0, 0) * this.entityCost
+     if (block.safe) return cost
++    if (this.canOpenDoors && block.openable) return cost
+     if (!this.safeToBreak(block)) return 100 // Can't break, so can't move
+     toBreak.push(block.position)
+
+@@ -379,7 +380,7 @@
+         cost += this.exclusionBreak(blockD)
+         toBreak.push(blockD.position)
+       }
+-      cost += this.exclusionPlace(blockC)
++      cost += this.exclusionPlace(blockD)
+       toPlace.push({ x: node.x, y: node.y - 1, z: node.z, dx: dir.x, dy: 0, dz: dir.z })
+       cost += this.placeCost // additional cost for placing a block
+     }
+@@ -388,7 +389,7 @@
+     if (cost > 100) return
+
+     // Open fence gates
+-    if (this.canOpenDoors && blockC.openable && blockC.shapes && blockC.shapes.length !== 0) {
++    if (this.canOpenDoors && blockC.openable && !blockC.getProperties().open) {
+       toPlace.push({ x: node.x + dir.x, y: node.y, z: node.z + dir.z, dx: 0, dy: 0, dz: 0, useOne: true }) // Indicate that a block should be used on this block not placed
+     } else {
+       cost += this.safeOrBreak(blockC, toBreak)
+@@ -658,6 +659,12 @@
+
+     return neighbors
+   }
++
++  updateLavaAvoidance () {
++    const lavaId = this.bot.registry.blocksByName.lava.id
++    if (this.bot.entity?.isInLava) this.blocksToAvoid.delete(lavaId)
++    else this.blocksToAvoid.add(lavaId)
++  }
+ }
+
+ module.exports = Movements
+diff --git a/node_modules/mineflayer-pathfinder/lib/goals.js b/node_modules/mineflayer-pathfinder/lib/goals.js
+--- a/node_modules/mineflayer-pathfinder/lib/goals.js
++++ b/node_modules/mineflayer-pathfinder/lib/goals.js
+@@ -175 +175 @@
+-    if (node.distanceTo(this.pos.offset(0, this.entityHeight, 0)) > this.reach) return false
++    if (node.offset(0, this.entityHeight, 0).distanceTo(this.pos) > this.reach) return false
+@@ -212,8 +212,8 @@
+     this.goal = new GoalLookAtBlock(new Vec3(x, y, z), bot, options)
+   }
+
+-  isEnd () {
+-    return this.goal.isEnd()
++  isEnd (node) {
++    return this.goal.isEnd(node)
+   }
+
+   heuristic (node) {
+diff --git a/node_modules/mineflayer-pathfinder/lib/goto.js b/node_modules/mineflayer-pathfinder/lib/goto.js
+--- a/node_modules/mineflayer-pathfinder/lib/goto.js
++++ b/node_modules/mineflayer-pathfinder/lib/goto.js
+@@ -20,12 +20,14 @@
+     }
+
+     function noPathListener (results) {
+-      if (results.path.length === 0) {
+-        cleanup()
+-      } else if (results.status === 'noPath') {
++      // A search that fails or is still slicing reconstructs its best node, which is the start node
++      // and so an empty path. Only a 'success' with nothing to walk means the goal is already met.
++      if (results.status === 'noPath') {
+         cleanup(error('NoPath', 'No path to the goal!'))
+       } else if (results.status === 'timeout') {
+         cleanup(error('Timeout', 'Took to long to decide path to goal!'))
++      } else if (results.status === 'success' && results.path.length === 0) {
++        cleanup()
+       }
+     }
+
+@@ -44,6 +46,9 @@
+       bot.removeListener('path_update', noPathListener)
+       bot.removeListener('goal_updated', goalChangedListener)
+       bot.removeListener('path_stop', pathStopped)
++
++      // A failed search must not leave an active goal behind.
++      if (err && bot.pathfinder.goal === goal) bot.pathfinder.setGoal(null)
+
+       // Run callback on next event stack to let pathfinder properly cleanup,
+       // otherwise chaining waypoints does not work properly.

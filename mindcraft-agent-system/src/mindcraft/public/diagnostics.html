@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mindcraft 实时诊断</title>
+<style>
+body{margin:0;background:#0c1714;color:#e0ece5;font:14px system-ui}header{padding:16px;position:sticky;top:0;background:#14251f;display:flex;gap:12px;flex-wrap:wrap;align-items:center}h1{font-size:18px;margin:0}input,button{font:inherit;padding:6px}#state{padding:12px 16px;color:#99cdb0}pre{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;padding:16px;line-height:1.6}small{color:#acbdb3}
+</style>
+<header><h1>实时诊断</h1><strong id="agent"></strong><input id="filter" placeholder="筛选类型、工具或错误" aria-label="筛选日志"><label><input id="pause" type="checkbox">暂停显示</label><small>仅内存 · 最近 500 条 · 重启清空</small></header>
+<div id="state" role="status">连接中…</div><pre id="logs"></pre>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const name=new URLSearchParams(location.search).get('agent')||'andy';
+document.getElementById('agent').textContent=name;
+const rows=new Map();let cursor=0;
+const output=document.getElementById('logs'),status=document.getElementById('state');
+function render(){
+    if(document.getElementById('pause').checked)return;
+    const follow=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-70;
+    const query=document.getElementById('filter').value.toLowerCase();
+    output.textContent=[...rows.values()].filter(row=>JSON.stringify(row).toLowerCase().includes(query))
+        .map(row=>`${row.time}  #${row.id}  ${row.level.toUpperCase()}  ${row.type}\n${row.detail}\n`).join('\n');
+    if(follow)window.scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'});
+}
+function accept(entries){for(const row of entries){rows.set(row.id,row);cursor=Math.max(cursor,row.id);}while(rows.size>500)rows.delete(rows.keys().next().value);render();}
+async function snapshot(){try{
+    const response=await fetch(`/api/diagnostics/${encodeURIComponent(name)}?after=${cursor}`,{cache:'no-store'});
+    if(!response.ok)throw Error(`日志访问失败：HTTP ${response.status}`);
+    const data=await response.json();accept(data.entries);
+}catch(error){status.textContent=error.message;}}
+const socket=io();
+socket.on('connect',()=>{status.textContent='实时连接正常';socket.emit('listen-to-agents');snapshot();});
+socket.on('runtime-log',row=>{if(row.agent===name)accept([row]);});
+socket.on('state-update',states=>{const state=states[name];if(state)status.textContent=state.error||`当前状态：${state.action?.current||'未知'} · 思考开始：${state.action?.thinkingSince?new Date(state.action.thinkingSince).toLocaleTimeString():'—'}`;});
+socket.on('disconnect',()=>{status.textContent='连接已断开，等待重连…';});
+socket.on('control-error',error=>{status.textContent=error.error;});
+document.getElementById('filter').addEventListener('input',render);
+document.getElementById('pause').addEventListener('change',render);
+setInterval(snapshot,3000);
+</script></html>

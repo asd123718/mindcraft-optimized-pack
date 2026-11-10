@@ -1,0 +1,13 @@
+{
+    "name": "andy",
+    "reference_andy42": true,
+    "use_function_calling": false,
+    "use_brain_agent": false,
+    "prompt_format": "auto",
+    "model": {
+        "api": "lmstudio",
+        "model": "andy-4.2-q8-reference",
+        "url": "http://127.0.0.1:1235/v1"
+    },
+    "embedding": false
+}

@@ -1,0 +1,96 @@
+import { promises as fs } from 'fs';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Dynamically discover model classes in this directory.
+// Each model class must export a static `prefix` string.
+const apiMap = await (async () => {
+    const map = Object.create(null);
+    const files = (await fs.readdir(__dirname))
+        .filter(f => f.endsWith('.js') && f !== '_model_map.js' && f !== 'prompter.js');
+    for (const file of files) {
+        try {
+            const moduleUrl = pathToFileURL(path.join(__dirname, file)).href;
+            const mod = await import(moduleUrl);
+            for (const exported of Object.values(mod)) {
+                if (typeof exported === 'function' && Object.prototype.hasOwnProperty.call(exported, 'prefix')) {
+                    const prefix = exported.prefix;
+                    if (typeof prefix === 'string' && prefix.length > 0) {
+                        map[prefix] = exported;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load model module:', file, e?.message || e);
+        }
+    }
+    return map;
+})();
+
+const apiAliases = {
+    local: 'ollama',
+    ollamacloud: 'ollama_cloud',
+    'ollama-cloud': 'ollama_cloud',
+};
+
+export function selectAPI(profile) {
+    if (typeof profile === 'string' || profile instanceof String) {
+        profile = {model: profile};
+    }
+    if (profile.api) profile.api = apiAliases[profile.api] || profile.api;
+    const modelPrefix = profile.model?.split('/')[0];
+    const prefixAPI = apiAliases[modelPrefix] || modelPrefix;
+    if (!profile.api) {
+        // Match a whole provider name, so ollama_cloud cannot resolve to ollama.
+        const api = apiMap[prefixAPI] ? prefixAPI : null;
+        if (api) {
+            profile.api = api;
+        }
+        else {
+            // check for some common models that do not require prefixes
+            if (profile.model?.includes('gpt') || profile.model?.includes('o1')|| profile.model?.includes('o3'))
+                profile.api = 'openai';
+            else if (profile.model?.includes('claude'))
+                profile.api = 'anthropic';
+            else if (profile.model?.includes('gemini'))
+                profile.api = "google";
+            else if (profile.model?.includes('grok'))
+                profile.api = 'xai';
+            else if (profile.model?.includes('mistral'))
+                profile.api = 'mistral';
+            else if (profile.model?.includes('deepseek'))
+                profile.api = 'deepseek';
+            else if (profile.model?.includes('qwen'))
+                profile.api = 'qwen';
+        }
+        if (!profile.api) {
+            throw new Error(`Unknown model: ${profile.model}`);
+        }
+    }
+    if (!apiMap[profile.api]) {
+        throw new Error(`Unknown api: ${profile.api}`);
+    }
+    let model_name = profile.model;
+    if (prefixAPI === profile.api) {
+        model_name = profile.model.slice(modelPrefix.length).replace(/^\//, '');
+    }
+    profile.model = model_name === "" ? null : model_name; // if model is empty, set to null
+    return profile;
+}
+
+export function createModel(profile) {
+    if (profile.api) profile.api = apiAliases[profile.api] || profile.api;
+    if (apiMap[profile.model]) {
+        // if the model value is an api (instead of a specific model name)
+        // then set model to null so it uses the default model for that api
+        profile.model = null;
+    }
+    if (!apiMap[profile.api]) {
+        throw new Error('Unknown api:', profile.api);
+    }
+    const model = new apiMap[profile.api](profile.model, profile.url, profile.params);
+    return model;
+}

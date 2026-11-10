@@ -1,0 +1,35 @@
+Andy 2.0 License
+
+Copyright 2026 SWEATERDOG & THE MINDCRAFT PROJECT
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this Work (the “Work”), to deal in the Work without restriction, including
+without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Work, and to permit persons to whom the
+Work is furnished to do so, subject to the following conditions:
+
+1. Model Naming or Credit Link
+   The redistributed or derivative model’s name must include the term “Andy”,
+   OR the repository must credit https://huggingface.co/Sweaterdog 
+   AND https://huggingface.co/Mindcraft-CE in the README file.
+
+2. Shout-Out Clause
+   The following acknowledgment must appear in the README or equivalent:
+   “This work uses data and models created by @Sweaterdog, and the Mindcraft Project”
+
+3. Retention of License and Notices
+   The above copyright notice, this license text, and the Shout-Out Clause
+   must be included in all copies or substantial portions of the Work.
+
+4. No Additional Restrictions
+   You may not apply legal terms or technological measures that restrict
+   the exercise of the rights granted herein.
+
+THE WORK IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE WORK OR THE USE OR OTHER DEALINGS
+IN THE WORK.
